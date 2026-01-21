@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import SearchBar from "../SearchBar";
 import CategoryFilter from "../CategoryFilter";
@@ -5,10 +7,20 @@ import StatusFilter from "../StatusFilter";
 import ServiceModal, { ServiceFormData } from "./ServiceModal";
 import DeleteModal from "./DeleteModal";
 import { Service } from "@/app/dashboards/officials/services/page";
-import { Edit2, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
+import {
+  Edit2,
+  Plus,
+  SlidersHorizontal,
+  Trash2,
+} from "lucide-react";
 
 export type ServiceCategory = "All" | "Fire" | "Rescue";
-export type ServiceStatus = "All" | "Active" | "Busy" | "Inactive" | "Pending";
+export type ServiceStatus =
+  | "All"
+  | "Active"
+  | "Busy"
+  | "Inactive"
+  | "Pending";
 
 interface ActionBarProps {
   selectedService: Service | null;
@@ -27,6 +39,15 @@ interface ActionBarProps {
   selectedStatus: ServiceStatus;
   setSelectedStatus: (value: ServiceStatus) => void;
 }
+
+const CATEGORY_OPTIONS: ServiceCategory[] = ["All", "Fire", "Rescue"];
+const STATUS_OPTIONS: ServiceStatus[] = [
+  "All",
+  "Active",
+  "Busy",
+  "Inactive",
+  "Pending",
+];
 
 const mapServiceToFormData = (
   service: Service
@@ -49,27 +70,16 @@ export default function ActionBar({
   setSearchQuery,
   selectedCategory,
   setSelectedCategory,
-  selectedStatus,     
-  setSelectedStatus,    
+  selectedStatus,
+  setSelectedStatus,
 }: ActionBarProps) {
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
-  const CATEGORY_OPTIONS: ServiceCategory[] = [
-    "All",
-    "Fire",
-    "Rescue",
-  ];
-
-  const STATUS_OPTIONS: ServiceStatus[] = [
-    "All",
-    "Active",
-    "Busy",
-    "Inactive",
-    "Pending",
-  ];
+  const hasActiveFilters =
+    selectedCategory !== "All" || selectedStatus !== "All";
 
   const handleSubmit = (data: ServiceFormData) => {
     if (modalMode === "add") {
@@ -100,8 +110,8 @@ export default function ActionBar({
   const handleDelete = () => {
     if (!selectedService) return;
     onDelete(selectedService.id);
-    setShowDeleteModal(false);
     setSelectedService(null);
+    setShowDeleteModal(false);
   };
 
   const handleClearFilters = () => {
@@ -109,16 +119,12 @@ export default function ActionBar({
     setSelectedStatus("All");
   };
 
-  const hasActiveFilters = selectedCategory !== "All" || selectedStatus !== "All";
-
   return (
     <>
       <div className="flex flex-wrap items-center gap-4 relative">
         {/* SEARCH BAR */}
         <div className="flex-1 min-w-[200px]">
-          <SearchBar
-            onSearch={setSearchQuery}
-          />
+          <SearchBar onSearch={setSearchQuery} />
         </div>
 
         {/* FILTER BUTTON */}
@@ -131,31 +137,32 @@ export default function ActionBar({
                 : "bg-white border-gray-200"
             }`}
           >
-            <SlidersHorizontal className="w-5 h-5 text-gray-700 hover:text-gray-900 transition-colors" />
+            <SlidersHorizontal className="w-5 h-5" />
 
             {hasActiveFilters && (
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white"></span>
+              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
             )}
           </button>
 
-          {/* DROPDOWN FILTER PANEL */}
+          {/* FILTER PANEL */}
           {showFilters && (
             <>
-              {/* Backdrop for mobile */}
-              <div 
+              <div
                 className="fixed inset-0 z-10"
                 onClick={() => setShowFilters(false)}
               />
-              
+
               <div className="absolute top-full right-0 mt-3 w-80 bg-white border border-gray-200 rounded-2xl shadow-2xl z-20 overflow-hidden">
-                {/* Header */}
-                <div className="px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-green-50 to-white">
+                <div className="px-5 py-4 border-b bg-gradient-to-r from-green-50 to-white">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-base font-semibold text-gray-900">Filters</h3>
+                    <h3 className="text-base font-semibold text-gray-900">
+                      Filters
+                    </h3>
+
                     {hasActiveFilters && (
                       <button
                         onClick={handleClearFilters}
-                        className="text-sm text-green-600 hover:text-green-700 font-medium transition-colors"
+                        className="text-sm text-green-600 font-medium"
                       >
                         Clear All
                       </button>
@@ -163,9 +170,7 @@ export default function ActionBar({
                   </div>
                 </div>
 
-                {/* Filter Content */}
                 <div className="p-5 space-y-5">
-                  {/* Category Filter */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-3">
                       Category
@@ -177,10 +182,8 @@ export default function ActionBar({
                     />
                   </div>
 
-                  {/* Divider */}
-                  <div className="border-t border-gray-100"></div>
+                  <div className="border-t border-gray-100" />
 
-                  {/* Status Filter */}
                   <div>
                     <label className="block text-sm font-semibold text-gray-900 mb-3">
                       Status
@@ -193,11 +196,10 @@ export default function ActionBar({
                   </div>
                 </div>
 
-                {/* Footer */}
                 <div className="px-5 py-4 bg-gray-50 border-t border-gray-100">
                   <button
                     onClick={() => setShowFilters(false)}
-                    className="w-full h-10 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
+                    className="w-full h-10 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg"
                   >
                     Apply Filters
                   </button>
@@ -207,7 +209,7 @@ export default function ActionBar({
           )}
         </div>
 
-        {/* DELETE */}
+        {/* DELETE BUTTON */}
         <button
           onClick={() => {
             if (!selectedService) return alert("Please select a service to delete");
@@ -215,32 +217,32 @@ export default function ActionBar({
           }}
           className="w-11 h-11 rounded-xl flex items-center border justify-center hover:bg-red-200 transition-colors"
         >
-          <Trash2 className="w-5 h-5 text-gray-700 hover:text-red-600 transition-colors" />
+          <Trash2 className="w-5 h-5" />
         </button>
 
-        {/* EDIT */}
+        {/* EDIT BUTTON */}
         <button
           onClick={() => {
             if (!selectedService) return alert("Please select a service to edit");
             setModalMode("edit");
             setShowModal(true);
           }}
-          className="px-5 h-11 rounded-xl border bg-white flex items-center gap-2 hover:bg-gray-50 transition-colors"
+          className="px-5 h-11 rounded-xl border bg-white flex items-center gap-2 hover:bg-gray-50"
         >
-          <Edit2 className="w-4 h-4 text-gray-700 hover:text-blue-600 transition-colors" />
+          <Edit2 className="w-4 h-4" />
           Edit
         </button>
 
-        {/* ADD */}
+        {/* ADD BUTTON */}
         <button
           onClick={() => {
             setSelectedService(null);
             setModalMode("add");
             setShowModal(true);
           }}
-          className="px-6 h-11 rounded-xl bg-green-500 text-white flex items-center gap-2 hover:bg-green-600 transition-colors"
+          className="px-6 h-11 rounded-xl bg-green-500 text-white flex items-center gap-2 hover:bg-green-600"
         >
-          <Plus className="w-4 h-4 text-gray-700 hover:text-green-600 transition-colors" />
+          <Plus className="w-4 h-4" />
           Add Service
         </button>
       </div>
@@ -249,10 +251,11 @@ export default function ActionBar({
       {showModal && (
         <ServiceModal
           mode={modalMode}
-          initialData={modalMode === "edit" && selectedService
-             ?mapServiceToFormData(selectedService)
-             :undefined
-        }
+          initialData={
+            modalMode === "edit" && selectedService
+              ? mapServiceToFormData(selectedService)
+              : undefined
+          }
           onClose={() => setShowModal(false)}
           onSubmit={handleSubmit}
         />

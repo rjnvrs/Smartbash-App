@@ -1,6 +1,13 @@
 "use client";
 
 import { ArrowUpRight } from "lucide-react";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardAction,
+} from "@/components/ui/card";
 
 export default function StatCards() {
   const stats = [
@@ -26,7 +33,7 @@ export default function StatCards() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
       {stats.map((s) => (
-        <div
+        <Card
           key={s.title}
           onClick={() => handleClick(s.title)}
           className={`group cursor-pointer ${
@@ -36,8 +43,8 @@ export default function StatCards() {
           } rounded-2xl p-4 sm:p-5 transition hover:shadow-xl`}
         >
           {/* TOP ROW */}
-          <div className="flex items-center justify-between gap-3">
-            <span
+          <CardHeader className="flex items-center justify-between gap-3 p-0">
+            <CardTitle
               className={
                 s.highlight
                   ? "text-white font-medium"
@@ -45,10 +52,10 @@ export default function StatCards() {
               }
             >
               {s.title}
-            </span>
+            </CardTitle>
 
             {/* ICON + TOOLTIP */}
-            <div className="relative shrink-0">
+            <CardAction className="relative shrink-0 p-0">
               <div
                 className={
                   s.highlight
@@ -58,7 +65,9 @@ export default function StatCards() {
               >
                 <ArrowUpRight
                   className={`transition-transform duration-300 ${
-                    s.highlight ? "h-6 w-6 sm:h-7 sm:w-7" : "h-5 w-5 sm:h-6 sm:w-6"
+                    s.highlight
+                      ? "h-6 w-6 sm:h-7 sm:w-7"
+                      : "h-5 w-5 sm:h-6 sm:w-6"
                   } group-hover:rotate-45`}
                 />
               </div>
@@ -67,20 +76,22 @@ export default function StatCards() {
               <div className="absolute -top-9 right-1/2 translate-x-1/2 whitespace-nowrap opacity-0 group-hover:opacity-100 transition text-xs bg-gray-900 text-white px-2 py-1 rounded hidden sm:block">
                 View details
               </div>
-            </div>
-          </div>
+            </CardAction>
+          </CardHeader>
 
           {/* VALUE */}
-          <h2
-            className={
-              s.highlight
-                ? "text-2xl sm:text-3xl font-bold mt-5 text-white"
-                : "text-2xl sm:text-3xl font-bold mt-5 text-gray-900"
-            }
-          >
-            {s.value}
-          </h2>
-        </div>
+          <CardContent className="p-0">
+            <h2
+              className={
+                s.highlight
+                  ? "text-2xl sm:text-3xl font-bold mt-5 text-white"
+                  : "text-2xl sm:text-3xl font-bold mt-5 text-gray-900"
+              }
+            >
+              {s.value}
+            </h2>
+          </CardContent>
+        </Card>
       ))}
     </div>
   );

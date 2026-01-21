@@ -1,10 +1,11 @@
 "use client";
+
 import { useState, ChangeEvent, FormEvent } from "react";
 import { validateForm } from "../utils/validation";
 
 type Role = "Resident" | "Services" | "BrgyOfficials";
 
-interface FormData {
+export interface FormData {
   firstName: string;
   middleName: string;
   lastName: string;
@@ -44,7 +45,7 @@ export function useSignUpForm() {
   });
 
   const updateField = (field: keyof FormData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
   const resetForm = (newRole: Role) => {
@@ -78,7 +79,11 @@ export function useSignUpForm() {
     setIsLoading(true);
 
     try {
-      const { confirmPassword, ...payload } = { role, ...formData, files: files?.name };
+      const { confirmPassword, ...payload } = {
+        role,
+        ...formData,
+        files: files?.name,
+      };
 
       const res = await fetch("http://127.0.0.1:8000/api/auth/signup/", {
         method: "POST",
@@ -91,7 +96,10 @@ export function useSignUpForm() {
       if (!res.ok) throw new Error(data.message);
 
       setSuccessMessage("Registration successful!");
-      setTimeout(() => (window.location.href = "/signin"), 2000);
+
+      setTimeout(() => {
+        window.location.href = "/signin";
+      }, 2000);
     } catch (err: any) {
       setErrorMessage(err.message || "Registration failed");
     } finally {

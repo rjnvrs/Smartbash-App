@@ -2,23 +2,19 @@
 import InputField from "../../../../components/core-ui/register-components/InputField";
 import FileUpload from "../../../../components/core-ui/register-components/FileUpload";
 import { ChangeEvent } from "react";
-
-interface ServicesFormData {
-  name: string;
-  location: string;
-  email: string;
-  contactNo: string;
-  password: string;
-  confirmPassword: string;
-}
+import { FormData } from "../hooks/useSignUpForm";
 
 interface ServicesFormProps {
-  formData: ServicesFormData;
-  updateField: (field: keyof ServicesFormData, value: string) => void;
+  formData: FormData;
+  updateField: (field: keyof FormData, value: string) => void;
   onFileChange: (file: File) => void;
 }
 
-export default function ServicesForm({ formData, updateField, onFileChange }: ServicesFormProps) {
+export default function ServicesForm({
+  formData,
+  updateField,
+  onFileChange,
+}: ServicesFormProps) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -26,14 +22,18 @@ export default function ServicesForm({ formData, updateField, onFileChange }: Se
           label="Name"
           placeholder="Enter your name"
           defaultValue={formData.name}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => updateField("name", e.target.value)}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            updateField("name", e.target.value)
+          }
           required
         />
         <InputField
           label="Location"
           placeholder="Enter location"
           defaultValue={formData.location}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => updateField("location", e.target.value)}
+          onChange={(e: ChangeEvent<HTMLInputElement>) =>
+            updateField("location", e.target.value)
+          }
           required
         />
       </div>
@@ -43,7 +43,9 @@ export default function ServicesForm({ formData, updateField, onFileChange }: Se
         label="Email"
         placeholder="Enter email"
         defaultValue={formData.email}
-        onChange={(e: ChangeEvent<HTMLInputElement>) => updateField("email", e.target.value)}
+        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+          updateField("email", e.target.value)
+        }
         required
       />
 
@@ -51,7 +53,9 @@ export default function ServicesForm({ formData, updateField, onFileChange }: Se
         label="Contact No."
         placeholder="Enter contact number"
         defaultValue={formData.contactNo}
-        onChange={(e: ChangeEvent<HTMLInputElement>) => updateField("contactNo", e.target.value)}
+        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+          updateField("contactNo", e.target.value)
+        }
       />
 
       <InputField
@@ -59,7 +63,9 @@ export default function ServicesForm({ formData, updateField, onFileChange }: Se
         label="Password"
         placeholder="Enter password"
         defaultValue={formData.password}
-        onChange={(e: ChangeEvent<HTMLInputElement>) => updateField("password", e.target.value)}
+        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+          updateField("password", e.target.value)
+        }
         required
       />
 
@@ -68,7 +74,9 @@ export default function ServicesForm({ formData, updateField, onFileChange }: Se
         label="Confirm Password"
         placeholder="Confirm password"
         defaultValue={formData.confirmPassword}
-        onChange={(e: ChangeEvent<HTMLInputElement>) => updateField("confirmPassword", e.target.value)}
+        onChange={(e: ChangeEvent<HTMLInputElement>) =>
+          updateField("confirmPassword", e.target.value)
+        }
         required
       />
 

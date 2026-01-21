@@ -1,4 +1,5 @@
 "use client";
+
 import Link from "next/link";
 import Header from "../../../components/core-ui/login-components/header";
 import RoleSelector from "../../../components/core-ui/register-components/RoleSelector";
@@ -89,10 +90,7 @@ export default function page() {
 
             {/* ROLE SELECTOR */}
             <div className="mt-8">
-              <RoleSelector
-                role={role}
-                onChange={handleRoleChange}
-              />
+              <RoleSelector role={role} onChange={handleRoleChange} />
             </div>
 
             {/* DIVIDER */}
@@ -107,7 +105,8 @@ export default function page() {
                 console.log("Google signup clicked");
               }}
             />
-            {/* ✅ SUBMIT BUTTON (RESTORED) */}
+
+            {/* SUBMIT BUTTON */}
             <button
               type="submit"
               disabled={isLoading}

@@ -75,7 +75,7 @@ export default function Page() {
               </svg>
             </Link>
             <Link
-              href="/signup"
+              href="/register"
               className="group inline-flex items-center justify-center px-8 py-4 text-lg font-semibold rounded-full text-green-600 bg-white border-2 border-green-600 hover:bg-green-50 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1"
             >
               <span>Create New Account</span>

@@ -1,6 +1,7 @@
-"use client"
+"use client";
 
 import { useState } from "react";
+import { TableRow, TableCell } from "@/components/ui/table";
 
 export type ResidentStatus = "Pending" | "Approved" | "Removed";
 
@@ -49,56 +50,49 @@ export default function ResidentRow({ data, onUpdateStatus }: ResidentRowProps) 
   };
 
   return (
-    <div className="grid grid-cols-8 items-center bg-[#FAFAFA] rounded-xl px-4 py-4 text-sm">
-      <div>{data.name}</div>
-      <div className="break-all">{data.email}</div>
-      <div>{data.contact}</div>
-      <div className="whitespace-nowrap">
+    <TableRow>
+      <TableCell>{data.name}</TableCell>
+      <TableCell className="break-all">{data.email}</TableCell>
+      <TableCell>{data.contact}</TableCell>
+      <TableCell>
         {data.gender}, {data.age}
-      </div>
+      </TableCell>
 
-      <div className="col-span-2">
+      <TableCell className="col-span-2">
         {data.details}
         <br />
-        <span className="text-blue-500 text-xs cursor-pointer">
-          View
-        </span>
-      </div>
+        <span className="text-blue-500 text-xs cursor-pointer">View</span>
+      </TableCell>
 
-      <div className={`font-medium ${statusColor}`}>{status}</div>
+      <TableCell className={`font-medium ${statusColor}`}>{status}</TableCell>
 
-      <div className="flex gap-2">
-        {status === "Pending" ? (
-          <>
+      <TableCell>
+        <div className="flex gap-2">
+          {status === "Pending" ? (
+            <>
+              <button
+                onClick={handleApprove}
+                className="px-4 py-1 rounded-full bg-green-500 text-white text-xs"
+              >
+                Approve
+              </button>
+              <button
+                onClick={handleRemove}
+                className="px-4 py-1 rounded-full bg-red-600 text-white text-xs"
+              >
+                Remove
+              </button>
+            </>
+          ) : (
             <button
-              onClick={handleApprove}
-              className="px-4 py-1 rounded-full bg-green-500 text-white text-xs"
+              onClick={handleCancel}
+              className="px-6 py-1 rounded-full bg-black text-white text-xs"
             >
-              Approve
+              Cancel
             </button>
-            <button
-              onClick={handleRemove}
-              className="px-4 py-1 rounded-full bg-red-600 text-white text-xs"
-            >
-              Remove
-            </button>
-          </>
-        ) : status === "Approved" ? (
-          <button
-            onClick={handleCancel}
-            className="px-6 py-1 rounded-full bg-black text-white text-xs"
-          >
-            Cancel
-          </button>
-        ) : status === "Removed" ? (
-          <button
-            onClick={handleCancel}
-            className="px-6 py-1 rounded-full bg-black text-white text-xs"
-          >
-            Cancel
-          </button>
-        ) : null}
-      </div>
-    </div>
+          )}
+        </div>
+      </TableCell>
+    </TableRow>
   );
 }
