@@ -1,11 +1,11 @@
 "use client";
 //modified by don
 import { useState } from "react";
-import Sidebar from "../../../components/core-ui/official-components/Sidebar";
-import SearchBar from "../../../components/core-ui/official-components/SearchBar";
-import ResidentsTable from "../../../components/core-ui/official-components/residents-approval-components/ResidentsTable";
-import StatusFilter from "../../../components/core-ui/official-components/StatusFilter";
-import { ResidentStatus, ResidentData } from "../../../components/core-ui/official-components/residents-approval-components/ResidentRow";
+import Sidebar from "../../../../components/core-ui/official-components/Sidebar";
+import SearchBar from "../../../../components/core-ui/official-components/SearchBar";
+import ResidentsTable from "../../../../components/core-ui/official-components/residents-approval-components/ResidentsTable";
+import StatusFilter from "../../../../components/core-ui/official-components/StatusFilter";
+import { ResidentStatus, ResidentData } from "../../../../components/core-ui/official-components/residents-approval-components/ResidentRow";
 
 const DATA: ResidentData[] = [
   {
@@ -54,7 +54,7 @@ const DATA: ResidentData[] = [
 // Define statuses for this page
 const RESIDENT_STATUSES: (ResidentStatus | "All")[] = ["All", "Pending", "Approved", "Removed"];
 
-export default function page() {
+export default function ResidentsApproval() {
   const [status, setStatus] = useState<ResidentStatus | "All">("All");
   const [searchTerm, setSearchTerm] = useState(""); // <-- new state
 

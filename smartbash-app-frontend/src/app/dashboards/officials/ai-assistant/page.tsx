@@ -1,13 +1,13 @@
 "use client";
 //modified by don
 import { useState } from "react";
-import Sidebar from "../../../components/core-ui/official-components/Sidebar";
-import ChatArea from "../../../components/core-ui/official-components/ai-assistant-components/ChatArea";
-import ChatInput from "../../../components/core-ui/official-components/ai-assistant-components/ChatInput";
-import RecommendationButtons from "../../../components/core-ui/official-components/ai-assistant-components/RecommendationPanel";
-import { ChatBubbleProps } from "../../../components/core-ui/official-components/ai-assistant-components/ChatBubble";
+import Sidebar from "../../../../components/core-ui/official-components/Sidebar";
+import ChatArea from "../../../../components/core-ui/official-components/ai-assistant-components/ChatArea";
+import ChatInput from "../../../../components/core-ui/official-components/ai-assistant-components/ChatInput";
+import RecommendationButtons from "../../../../components/core-ui/official-components/ai-assistant-components/RecommendationPanel";
+import { ChatBubbleProps } from "../../../../components/core-ui/official-components/ai-assistant-components/ChatBubble";
 
-export default function page() {
+export default function AiAssistant() {
   const [messages, setMessages] = useState<ChatBubbleProps[]>([
     {
       type: "user",

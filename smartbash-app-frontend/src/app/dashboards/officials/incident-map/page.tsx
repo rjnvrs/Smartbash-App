@@ -1,13 +1,13 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import Sidebar from "../../../components/core-ui/official-components/Sidebar";
-import { MapHeader } from "../../../components/core-ui/official-components/incident-map-components/MapHeader";
-import { FilterTabs } from "../../../components/core-ui/official-components/incident-map-components/FilterTabs";
-import { UrgencyLegend } from "../../../components/core-ui/official-components/incident-map-components/UrgencyLegend";
-import { MapView } from "../../../components/core-ui/official-components/incident-map-components/MapView";
-import { ClusterDetails } from "../../../components/core-ui/official-components/incident-map-components/ClusterDetails";
-import { MapSearchBar } from "../../../components/core-ui/official-components/incident-map-components/MapSearchbar";
+import Sidebar from "../../../../components/core-ui/official-components/Sidebar";
+import { MapHeader } from "../../../../components/core-ui/official-components/incident-map-components/MapHeader";
+import { FilterTabs } from "../../../../components/core-ui/official-components/incident-map-components/FilterTabs";
+import { UrgencyLegend } from "../../../../components/core-ui/official-components/incident-map-components/UrgencyLegend";
+import { MapView } from "../../../../components/core-ui/official-components/incident-map-components/MapView";
+import { ClusterDetails } from "../../../../components/core-ui/official-components/incident-map-components/ClusterDetails";
+import { MapSearchBar } from "../../../../components/core-ui/official-components/incident-map-components/MapSearchbar";
 
 // Define types
 export type IncidentType = "fire" | "flood";
@@ -23,7 +23,7 @@ export interface Incident {
   location: string;
 }
 
-export default function page() {
+export default function IncidentMap() {
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [autoDispatch, setAutoDispatch] = useState(false);
   const [selectedType, setSelectedType] = useState<IncidentType | "All">("All");

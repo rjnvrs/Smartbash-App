@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import Sidebar from "../../../components/core-ui/official-components/Sidebar";
-import StatCard from "../../../components/core-ui/official-components/services-components/StatCard";
+import Sidebar from "../../../../components/core-ui/official-components/Sidebar";
+import StatCard from "../../../../components/core-ui/official-components/services-components/StatCard";
 import ActionBar from "@/components/core-ui/official-components/services-components/ActionBar";
 import ServiceCard from "@/components/core-ui/official-components/services-components/ServiceCard";
 import { ServiceStatus, ServiceCategory } from "@/components/core-ui/official-components/services-components/ActionBar";
@@ -21,7 +21,7 @@ export interface Service {
   variant: ServiceVariant;
 }
 
-export default function page() {
+export default function Services() {
   const [services, setServices] = useState<Service[]>([
     {
       id: 1,

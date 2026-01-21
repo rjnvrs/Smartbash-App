@@ -1,8 +1,8 @@
 "use client";
 import Link from "next/link";
-import Header from "../../components/core-ui/login-components/header";
-import RoleSelector from "../../components/core-ui/register-components/RoleSelector";
-import SocialLoginButton from "../../components/core-ui/login-components/SocialLoginButton";
+import Header from "../../../components/core-ui/login-components/header";
+import RoleSelector from "../../../components/core-ui/register-components/RoleSelector";
+import SocialLoginButton from "../../../components/core-ui/login-components/SocialLoginButton";
 
 import { useSignUpForm } from "./hooks/useSignUpForm";
 import ResidentForm from "./sections/ResidentsForm";
@@ -42,7 +42,7 @@ export default function page() {
             <h1 className="text-3xl font-bold text-gray-900 mb-1">Sign Up</h1>
             <p className="text-sm text-gray-600">
               Have an account?{" "}
-              <Link href="/signin" className="text-blue-600 hover:underline">
+              <Link href="/login" className="text-blue-600 hover:underline">
                 Login Now
               </Link>
             </p>
@@ -124,7 +124,7 @@ export default function page() {
             <p className="text-center text-sm text-gray-600 mt-6">
               Have an account?{" "}
               <Link
-                href="/signin"
+                href="/login"
                 className="text-green-600 hover:underline font-medium"
               >
                 Login

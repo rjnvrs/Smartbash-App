@@ -1,8 +1,8 @@
 "use client";
 
-import Header from "../../components/core-ui/login-components/header";
-import FormContainer from "../../components/core-ui/login-components/FormContainer";
-import SignInForm from "../../components/core-ui/login-components/SignInForm";
+import Header from "../../../components/core-ui/login-components/header";
+import FormContainer from "../../../components/core-ui/login-components/FormContainer";
+import SignInForm from "../../../components/core-ui/login-components/SignInForm";
 
 export default function page() {
   return (

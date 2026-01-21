@@ -1,17 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import Sidebar from "../../../components/core-ui/official-components/Sidebar";
-import SearchBar from "../../../components/core-ui/official-components/SearchBar";
-import CategoryFilter from "../../../components/core-ui/official-components/CategoryFilter";
-import StatusFilter from "../../../components/core-ui/official-components/StatusFilter";
-import ReportsTable from "../../../components/core-ui/official-components/all-reports-components/ReportsTable";
-import Pagination from "../../../components/core-ui/official-components/Pagination";
-import { ReportCategory } from "../../../components/core-ui/official-components/all-reports-components/ReportsTable";
-import { ReportStatus } from "../../../components/core-ui/official-components//all-reports-components/ReportsTable";
+import Sidebar from "../../../../components/core-ui/official-components/Sidebar";
+import SearchBar from "../../../../components/core-ui/official-components/SearchBar";
+import CategoryFilter from "../../../../components/core-ui/official-components/CategoryFilter";
+import StatusFilter from "../../../../components/core-ui/official-components/StatusFilter";
+import ReportsTable from "../../../../components/core-ui/official-components/all-reports-components/ReportsTable";
+import Pagination from "../../../../components/core-ui/official-components/Pagination";
+import { ReportCategory } from "../../../../components/core-ui/official-components/all-reports-components/ReportsTable";
+import { ReportStatus } from "../../../../components/core-ui/official-components/all-reports-components/ReportsTable";
 import { AlertTriangle, Bookmark } from "lucide-react";
 
-export default function page() {
+export default function AllReports() {
   // State for filters
   const [status, setStatus] = useState<ReportStatus>("All Status");
   const [category, setCategory] = useState<ReportCategory>("All Categories");

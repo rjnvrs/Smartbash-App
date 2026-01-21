@@ -19,13 +19,14 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   const menu = [
-    { name: "Dashboard", icon: LayoutDashboard, href: "/officials" },
-    { name: "Incident Map", icon: MapPin, href: "/officials/incident-map" },
-    { name: "All Reports", icon: FileText, href: "/officials/all-reports" },
-    { name: "AI Assistant", icon: Bot, href: "/officials/ai-assistant" },
-    { name: "Services", icon: Briefcase, href: "/officials/services" },
-    { name: "Residents Approval", icon: Users, href: "/officials/residents-approval" },
-  ];
+  { name: "Dashboard", icon: LayoutDashboard, href: "/dashboards/officials" },
+  { name: "Incident Map", icon: MapPin, href: "/dashboards/officials/incident-map" },
+  { name: "All Reports", icon: FileText, href: "/dashboards/officials/all-reports" },
+  { name: "AI Assistant", icon: Bot, href: "/dashboards/officials/ai-assistant" },
+  { name: "Services", icon: Briefcase, href: "/dashboards/officials/services" },
+  { name: "Residents Approval", icon: Users, href: "/dashboards/officials/residents-approval" },
+];
+
 
   return (
     <>

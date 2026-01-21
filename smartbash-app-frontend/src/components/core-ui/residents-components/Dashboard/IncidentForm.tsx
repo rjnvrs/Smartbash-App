@@ -1,64 +1,96 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import Camera from './Camera'
+import { MapPin, Upload, Send, Flame, Waves } from 'lucide-react'
 
 export default function IncidentForm() {
-  const [description, setDescription] = useState('')
-  const [location, setLocation] = useState('')
-  const [image, setImage] = useState<File | null>(null)
-  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [description, setDescription] = useState<string>('')
+  const [location, setLocation] = useState<string>('')
+  const [images, setImages] = useState<string[]>([])
+  const [capturing, setCapturing] = useState<boolean>(false)
 
-  // 📷 IMAGE UPLOAD
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const videoRef = useRef<HTMLVideoElement | null>(null)
+  const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
-    setImage(file)
-    setImagePreview(URL.createObjectURL(file))
+  const startCamera = async (): Promise<void> => {
+    setCapturing(true)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      })
+
+      if (!videoRef.current) return
+      videoRef.current.srcObject = stream
+      await videoRef.current.play()
+    } catch (err: unknown) {
+      if (err instanceof Error) alert('Unable to access camera: ' + err.message)
+      setCapturing(false)
+    }
   }
 
-  // 📍 GET CURRENT LOCATION
-  const handleGetLocation = () => {
+  const capturePhoto = (): void => {
+    const video = videoRef.current
+    const canvas = canvasRef.current
+    if (!video || !video.srcObject || !canvas) return
+
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+    const dataUrl = canvas.toDataURL('image/png')
+    setImages((prev) => [...prev, dataUrl])
+
+    const tracks = (video.srcObject as MediaStream).getTracks()
+    tracks.forEach((track) => track.stop())
+    video.srcObject = null
+    setCapturing(false)
+  }
+
+  const cancelCapture = (): void => {
+    const tracks =
+      (videoRef.current?.srcObject as MediaStream | null)?.getTracks() || []
+    tracks.forEach((track) => track.stop())
+    if (videoRef.current) videoRef.current.srcObject = null
+    setCapturing(false)
+  }
+
+  const handleGetLocation = (): void => {
     if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser')
+      alert('Geolocation not supported')
       return
     }
 
     navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords
-        setLocation(`Lat: ${latitude}, Lng: ${longitude}`)
+      (pos) => {
+        setLocation(`Lat: ${pos.coords.latitude}, Lng: ${pos.coords.longitude}`)
       },
-      () => {
-        alert('Unable to retrieve your location')
-      }
+      () => alert('Unable to retrieve location')
     )
   }
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>): void => {
     e.preventDefault()
-
-    const reportData = {
+    const report = {
       description,
       location,
-      image,
+      images,
       createdAt: new Date().toISOString(),
     }
-
-    console.log('📦 Report Data:', reportData)
+    console.log(report)
     alert('Report submitted!')
-
     setDescription('')
     setLocation('')
-    setImage(null)
-    setImagePreview(null)
+    setImages([])
   }
 
   return (
     <div className="min-h-screen bg-gray-100 px-4 py-10">
       <div className="w-full max-w-3xl mx-auto bg-white rounded-2xl shadow-xl">
-
-        {/* Title */}
         <div className="px-8 pt-8">
           <h2 className="text-xl font-semibold text-gray-800">
             Report an Environmental Incident
@@ -66,26 +98,29 @@ export default function IncidentForm() {
         </div>
 
         <div className="px-8 py-6">
-
-          {/* Fire / Flood options */}
-          <div className="flex gap-6 mb-8">
-            <div className="flex-1 cursor-pointer">
-              <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-center">
-                <p className="text-sm font-semibold text-red-700 mb-2">Fire</p>
-                <img src="/RecentReport_icons/Fire_icons.png" className="mx-auto w-12 h-12" />
-              </div>
-            </div>
-
-            <div className="flex-1 cursor-pointer">
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-                <p className="text-sm font-semibold text-blue-700 mb-2">Flood</p>
-                <img src="/RecentReport_icons/Flood_icons.png" className="mx-auto w-12 h-12" />
-              </div>
+        {/* Fire / Flood */}
+        <div className="flex gap-6 mb-8">
+          {/* Fire */}
+          <div className="flex-1">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+              <p className="text-lg font-semibold text-red-700 mb-4 flex flex-col items-center justify-center gap-2">
+                <Flame className="w-12 h-12 text-red-500" />
+                Fire
+              </p>
             </div>
           </div>
 
+          {/* Flood */}
+          <div className="flex-1">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-center">
+              <p className="text-lg font-semibold text-blue-700 mb-4 flex flex-col items-center justify-center gap-2">
+                <Waves className="w-12 h-12 text-blue-500" />
+                Flood
+              </p>
+            </div>
+          </div>
+        </div>
           <form onSubmit={handleSubmit}>
-
             {/* Description */}
             <div className="mb-6">
               <label className="block font-medium text-gray-700 mb-2">
@@ -104,7 +139,6 @@ export default function IncidentForm() {
               <label className="block font-medium text-gray-700 mb-2">
                 Location
               </label>
-
               <div className="flex gap-2">
                 <input
                   type="text"
@@ -118,42 +152,50 @@ export default function IncidentForm() {
                 <button
                   type="button"
                   onClick={handleGetLocation}
-                  className="px-4 rounded-xl border bg-gray-500"
+                  className="flex items-center justify-center px-4 rounded-xl border bg-gray-500 text-white"
                 >
-                  <img src="/RecentReport_icons/Map_icons.png" className="w-6 h-6" />
+                  <MapPin className="w-6 h-6" />
                 </button>
               </div>
             </div>
 
-            {/* Image Upload */}
+            {/* Camera */}
             <div className="mb-8">
               <label className="block font-medium text-gray-700 mb-2">
-                Upload Image
+                Upload Images
               </label>
 
-              <label className="cursor-pointer">
-                <input
-                  type="file"
-                  accept="image/*"
-                  hidden
-                  onChange={handleImageUpload}
+              <div
+                className="border-2 border-dashed rounded-2xl p-6 text-center bg-gray-50 cursor-pointer"
+                onClick={() => !capturing && startCamera()}
+              >
+                {images.length > 0 && !capturing ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    {images.map((img, idx) => (
+                      <img
+                        key={idx}
+                        src={img}
+                        className="rounded-xl max-h-48 w-full object-cover"
+                      />
+                    ))}
+                  </div>
+                ) : !capturing ? (
+                  <>
+                    <Upload className="mx-auto w-12 h-12 mb-2 text-gray-500" />
+                    Click to take photo
+                  </>
+                ) : null}
+              </div>
+
+              {capturing && (
+                <Camera
+                  videoRef={videoRef}
+                  capturePhoto={capturePhoto}
+                  cancelCapture={cancelCapture}
                 />
+              )}
 
-                <div className="border-2 border-dashed rounded-2xl p-6 text-center bg-gray-50">
-                  {imagePreview ? (
-                    <img
-                      src={imagePreview}
-                      alt="Preview"
-                      className="mx-auto max-h-48 rounded-xl"
-                    />
-                  ) : (
-                    <>
-                      <img src="/RecentReport_icons/Upload.png" className="mx-auto w-12 h-12 mb-2" />
-                      Click to upload image
-                    </>
-                  )}
-                </div>
-              </label>
+              <canvas ref={canvasRef} className="hidden" />
             </div>
 
             {/* Submit */}
@@ -161,7 +203,7 @@ export default function IncidentForm() {
               type="submit"
               className="w-full flex items-center justify-center gap-2 bg-black text-white py-3 rounded-xl text-sm font-medium hover:bg-green-800"
             >
-              <img src="/RecentReport_icons/Send_icon.png" className="w-7 h-7" />
+              <Send className="w-6 h-6" />
               Submit Report
             </button>
           </form>

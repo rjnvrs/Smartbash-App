@@ -24,9 +24,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <title>Smartbash</title>
+        <link rel="icon" href="/logo.png" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        {/* Page content */}
         {children}
       </body>
     </html>
