@@ -1,5 +1,6 @@
 'use client'
 
+import { Flame, Waves } from 'lucide-react'
 import Image from 'next/image'
 
 interface ReportCardProps {
@@ -35,22 +36,10 @@ export default function ReportCard({
       {/* Header */}
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
-        <div className="w-12 h-12 relative">
-          {type === 'fire' && (
-            <img
-              src="/RecentReport_icons/Fire_icons.png"
-              alt="Fire Icon"
-              className="w-9 h-9 object-contain"
-            />
-          )}
-          {type === 'flood' && (
-            <img
-              src="/RecentReport_icons/Flood_icons.png"
-              alt="Flood Icon"
-              className="w-9 h-9 object-contain"
-            />
-          )}
-        </div>
+          <div className="w-12 h-12 flex items-center justify-center">
+            {type === 'fire' && <Flame className="w-8 h-8 text-red-500" />}
+            {type === 'flood' && <Waves className="w-8 h-8 text-blue-500" />}
+          </div>
 
           <h2 className="font-semibold text-gray-800 capitalize">
             {type} Incident

@@ -1,42 +1,50 @@
 "use client";
-import InputField from "../../../components/core-ui/register-components/InputField";
-import FileUpload from "../../../components/core-ui/register-components/FileUpload";
+import InputField from "../../../../components/core-ui/register-components/InputField";
+import FileUpload from "../../../../components/core-ui/register-components/FileUpload";
 import { ChangeEvent } from "react";
 
-interface ServicesFormData {
-  name: string;
+interface OfficialsFormData {
+  barangayName: string;
+  contact: string;
   location: string;
   email: string;
-  contactNo: string;
   password: string;
   confirmPassword: string;
 }
 
-interface ServicesFormProps {
-  formData: ServicesFormData;
-  updateField: (field: keyof ServicesFormData, value: string) => void;
+interface BrgyOfficialsFormProps {
+  formData: OfficialsFormData;
+  updateField: (field: keyof OfficialsFormData, value: string) => void;
   onFileChange: (file: File) => void;
 }
 
-export default function ServicesForm({ formData, updateField, onFileChange }: ServicesFormProps) {
+export default function BrgyOfficialsForm({ formData, updateField, onFileChange }:BrgyOfficialsFormProps) {
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <InputField
-          label="Name"
-          placeholder="Enter your name"
-          defaultValue={formData.name}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => updateField("name", e.target.value)}
+          label="Barangay Name"
+          placeholder="Enter barangay name"
+          defaultValue={formData.barangayName}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => updateField("barangayName", e.target.value)}
           required
         />
         <InputField
-          label="Location"
-          placeholder="Enter location"
-          defaultValue={formData.location}
-          onChange={(e: ChangeEvent<HTMLInputElement>) => updateField("location", e.target.value)}
+          label="Contact"
+          placeholder="Enter contact"
+          defaultValue={formData.contact}
+          onChange={(e: ChangeEvent<HTMLInputElement>) => updateField("contact", e.target.value)}
           required
         />
       </div>
+
+      <InputField
+        label="Location"
+        placeholder="Enter location"
+        defaultValue={formData.location}
+        onChange={(e: ChangeEvent<HTMLInputElement>) => updateField("location", e.target.value)}
+        required
+      />
 
       <InputField
         type="email"
@@ -45,13 +53,6 @@ export default function ServicesForm({ formData, updateField, onFileChange }: Se
         defaultValue={formData.email}
         onChange={(e: ChangeEvent<HTMLInputElement>) => updateField("email", e.target.value)}
         required
-      />
-
-      <InputField
-        label="Contact No."
-        placeholder="Enter contact number"
-        defaultValue={formData.contactNo}
-        onChange={(e: ChangeEvent<HTMLInputElement>) => updateField("contactNo", e.target.value)}
       />
 
       <InputField

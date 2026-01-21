@@ -4,7 +4,7 @@ import CategoryFilter from "../CategoryFilter";
 import StatusFilter from "../StatusFilter";
 import ServiceModal, { ServiceFormData } from "./ServiceModal";
 import DeleteModal from "./DeleteModal";
-import { Service } from "@/app/officials/services/page";
+import { Service } from "@/app/dashboards/officials/services/page";
 import { Edit2, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
 
 export type ServiceCategory = "All" | "Fire" | "Rescue";

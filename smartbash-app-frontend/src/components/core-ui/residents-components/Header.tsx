@@ -38,9 +38,9 @@ export default function Header() {
         <nav className="flex gap-10 mt-6">
           {/* Report Incidents tab */}
           <Link
-            href="/residents"
+            href="/dashboards/residents"
             className={`pb-2 font-medium ${
-              pathname === "/dashboard/residents"
+              pathname === "/dashboards/residents"
                 ? "border-b-2 border-green-600 text-green-700"
                 : "text-gray-600 hover:text-black transition"
             }`}
@@ -50,9 +50,9 @@ export default function Header() {
 
           {/* Reports tab */}
           <Link
-            href="/residents/reports"
+            href="/dashboards/residents/reports"
             className={`pb-2 font-medium ${
-              pathname.startsWith("/dashboard/residents/pages/reports")
+              pathname.startsWith("/dashboards/residents/reports")
                 ? "border-b-2 border-green-600 text-green-700"
                 : "text-gray-600 hover:text-black transition"
             }`}

@@ -1,10 +1,10 @@
 "use client";
 
-import Sidebar from "../../components/core-ui/official-components/Sidebar";
-import Topbar from "../../components/core-ui/official-components/Topbar";
-import StatCards from "../../components/core-ui/official-components/dashboard-components/StatCards";
-import StatusCards from "../../components/core-ui/official-components/dashboard-components/StatusCards";
-import RecentReports from "../../components/core-ui/official-components/dashboard-components/RecentReports";
+import Sidebar from "../../../components/core-ui/official-components/Sidebar";
+import Topbar from "../../../components/core-ui/official-components/Topbar";
+import StatCards from "../../../components/core-ui/official-components/dashboard-components/StatCards";
+import StatusCards from "../../../components/core-ui/official-components/dashboard-components/StatusCards";
+import RecentReports from "../../../components/core-ui/official-components/dashboard-components/RecentReports";
 
 export default function page() {
   return (

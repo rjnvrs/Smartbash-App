@@ -1,6 +1,6 @@
 "use client";
-import InputField from "../../../components/core-ui/register-components/InputField";
-import FileUpload from "../../../components/core-ui/register-components/FileUpload";
+import InputField from "../../../../components/core-ui/register-components/InputField";
+import FileUpload from "../../../../components/core-ui/register-components/FileUpload";
 import { ChangeEvent } from "react";
 
 interface ResidentsFormData {
