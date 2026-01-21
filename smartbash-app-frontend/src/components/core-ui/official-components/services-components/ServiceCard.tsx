@@ -59,9 +59,12 @@ export default function ServiceCard({
       {/* HEADER */}
       <div className="flex justify-between items-start mb-4">
         <div className="flex gap-3 items-center">
-          <div className="flex items-center gap-2">
+          {/* ICON + LABEL (stacked vertically) */}
+          <div className="flex flex-col items-center gap-1">
             {icon[variant] || <User className="w-6 h-6 text-gray-400" />}
-            <span>{variant === "firetruck" ? "Fire Station" : "Rescue Unit"}</span>
+            <span className="text-xs font-medium">
+              {variant === "firetruck" ? "Fire Station" : "Rescue Unit"}
+            </span>
           </div>
 
           <div>

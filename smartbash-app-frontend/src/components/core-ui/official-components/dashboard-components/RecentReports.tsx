@@ -1,16 +1,74 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation"; 
-import { Flame, MapPin, SlidersHorizontal, Waves } from "lucide-react"
+import { useRouter } from "next/navigation";
+import { Flame, MapPin, Waves } from "lucide-react";
+import StatusFilter from "../../../../components/core-ui/official-components/StatusFilter";
 
-export default function RecentReports() {
-  const [open, setOpen] = useState(false);
-  const router = useRouter(); 
+type RecentReportsProps = {
+  selectedStatus: string;
+  onStatusChange: (status: string) => void;
+  searchQuery: string;
+};
+
+export default function RecentReports({
+  selectedStatus,
+  onStatusChange,
+  searchQuery,
+}: RecentReportsProps) {
+  const router = useRouter();
+
+  const statusOptions = ["All", "Pending", "In Progress", "Completed"];
 
   const goToMap = () => {
-    router.push("/officials/incident-map"); 
+    router.push("/dashboards/officials/incident-map");
   };
+
+  const reports = [
+    {
+      category: "Fire",
+      icon: <Flame className="h-5 w-5 text-red-500" />,
+      color: "text-red-600",
+      location: "Laguna, Brgy. Basak, Cebu City",
+      date: "Dec 4, 10:26 AM",
+      status: "In Progress",
+      statusColor: "text-blue-600",
+    },
+    {
+      category: "Flood",
+      icon: <Waves className="h-5 w-5 text-blue-500" />,
+      color: "text-blue-600",
+      location: "Laguna, Brgy. Basak, Cebu City",
+      date: "Dec 5, 10:26 AM",
+      status: "Completed",
+      statusColor: "text-green-600",
+    },
+    {
+      category: "Fire",
+      icon: <Flame className="h-5 w-5 text-red-500" />,
+      color: "text-red-600",
+      location: "Laguna, Brgy. Basak, Cebu City",
+      date: "Dec 5, 10:26 AM",
+      status: "Pending",
+      statusColor: "text-orange-600",
+    },
+  ];
+
+  // Status Filter
+  const statusFiltered =
+    selectedStatus === "All"
+      ? reports
+      : reports.filter((report) => report.status === selectedStatus);
+
+  // Search Filter
+  const filteredReports = statusFiltered.filter((report) => {
+    const q = searchQuery.toLowerCase();
+    return (
+      report.category.toLowerCase().includes(q) ||
+      report.location.toLowerCase().includes(q) ||
+      report.date.toLowerCase().includes(q) ||
+      report.status.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="mt-8">
@@ -19,41 +77,25 @@ export default function RecentReports() {
         <h2 className="text-lg font-semibold">Recent Reports</h2>
 
         {/* FILTER + MAP */}
-        <div className="relative flex items-center gap-2">
-          {/* FILTER ICON */}
-          <button
-            onClick={() => setOpen(!open)}
-            className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition border"
-          >
-            <SlidersHorizontal className="h-6 w-6" />
-          </button>
+        <div className="flex items-center gap-3">
+          <StatusFilter
+            selectedStatus={selectedStatus}
+            onStatusChange={onStatusChange}
+            options={statusOptions}
+          />
 
-          {/* MAP ICON */}
           <button
             onClick={goToMap}
             className="h-10 w-10 flex items-center justify-center rounded-full hover:bg-gray-100 transition border"
+            aria-label="View incident map"
           >
             <MapPin className="h-6 w-6" />
           </button>
-
-          {/* DROPDOWN */}
-          {open && (
-            <div className="absolute right-0 top-12 w-40 bg-white border rounded-lg shadow-lg text-sm z-10">
-              {["All", "Pending", "In Progress", "Completed"].map((item) => (
-                <div
-                  key={item}
-                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
       {/* TABLE HEADER */}
-      <div className="grid grid-cols-4 px-6 py-3 text-sm text-gray-500">
+      <div className="grid grid-cols-4 px-6 py-3 text-sm text-gray-500 border-b">
         <div>Category</div>
         <div>Location</div>
         <div>Date & Time</div>
@@ -62,38 +104,34 @@ export default function RecentReports() {
 
       {/* ROWS */}
       <div className="space-y-4 mt-2">
-        {/* FIRE — IN PROGRESS */}
-        <div className="grid grid-cols-4 items-center px-6 py-4 bg-white rounded-xl shadow-sm">
-          <div className="flex items-center gap-2 font-medium text-red-600">
-            <Flame className="h-5 w-5 text-red-500" />
-            Fire
+        {filteredReports.length > 0 ? (
+          filteredReports.map((report, index) => (
+            <div
+              key={index}
+              className="grid grid-cols-4 items-center px-6 py-4 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow"
+            >
+              <div className={`flex items-center gap-2 font-medium ${report.color}`}>
+                {report.icon}
+                {report.category}
+              </div>
+              <div className="text-gray-700">{report.location}</div>
+              <div className="text-gray-700">{report.date}</div>
+              <div className={`${report.statusColor} font-medium`}>
+                {report.status}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="px-6 py-8 text-center text-gray-500 bg-white rounded-xl">
+            No reports found for the selected status.
           </div>
-          <div className="text-gray-700">Laguna, Brgy. Basak, Cebu City</div>
-          <div>Dec 4, 10:26 AM</div>
-          <div className="text-blue-600 font-medium">In progress</div>
-        </div>
+        )}
+      </div>
 
-        {/* FLOOD — COMPLETED */}
-        <div className="grid grid-cols-4 items-center px-6 py-4 bg-white rounded-xl shadow-sm">
-          <div className="flex items-center gap-2 font-medium text-blue-600">
-            <Waves className="h-5 w-5 text-blue-500" />
-            Flood
-          </div>
-          <div className="text-gray-700">Laguna, Brgy. Basak, Cebu City</div>
-          <div>Dec 5, 10:26 AM</div>
-          <div className="text-green-600 font-medium">Completed</div>
-        </div>
-
-        {/* FIRE — PENDING */}
-        <div className="grid grid-cols-4 items-center px-6 py-4 bg-white rounded-xl shadow-sm">
-          <div className="flex items-center gap-2 font-medium text-red-600">
-            <Flame className="h-5 w-5 text-red-500" />
-            Fire
-          </div>
-          <div className="text-gray-700">Laguna, Brgy. Basak, Cebu City</div>
-          <div>Dec 5, 10:26 AM</div>
-          <div className="text-orange-600 font-medium">Pending</div>
-        </div>
+      <div className="mt-4 text-sm text-gray-500">
+        Showing {filteredReports.length} report
+        {filteredReports.length !== 1 ? "s" : ""}
+        {selectedStatus !== "All" && ` (${selectedStatus})`}
       </div>
     </div>
   );

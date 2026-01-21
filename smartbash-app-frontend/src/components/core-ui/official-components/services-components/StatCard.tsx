@@ -1,7 +1,14 @@
-"use client"
+"use client";
 
 import { Flame, Waves } from "lucide-react";
 import { JSX } from "react";
+
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "@/components/ui/card";
 
 export type StatVariant = "fire" | "flood";
 
@@ -10,7 +17,6 @@ interface StatCardProps {
   count: number;
   variant: StatVariant;
 }
-
 
 export default function StatCard({ title, count, variant }: StatCardProps) {
   const styles =
@@ -26,13 +32,15 @@ export default function StatCard({ title, count, variant }: StatCardProps) {
   const icon = iconsMap[variant] || <Flame className="w-6 h-6 text-gray-400" />;
 
   return (
-    <div className={`bg-white rounded-2xl px-7 py-6 border-l-4 ${styles} shadow-sm flex justify-between items-center`}>
-      <div>
-        <p className="text-gray-600 text-sm">{title}</p>
-        <h3 className="text-4xl font-bold mt-1">{count}</h3>
-      </div>
+    <Card className={`border-l-4 ${styles} shadow-sm`}>
+      <CardContent className="flex justify-between items-center px-7 py-6">
+        <div>
+          <CardTitle className="text-gray-600 text-sm">{title}</CardTitle>
+          <h3 className="text-4xl font-bold mt-1">{count}</h3>
+        </div>
 
-      {icon}
-    </div>
+        {icon}
+      </CardContent>
+    </Card>
   );
 }

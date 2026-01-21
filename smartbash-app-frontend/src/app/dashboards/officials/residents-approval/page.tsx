@@ -38,7 +38,7 @@ const DATA: ResidentData[] = [
     details: "Valid ID",
     status: "Removed",
   },
-   {
+  {
     id: 4,
     name: "Donita Seguerra yeaah",
     email: "trytry1@gmail.com",
@@ -48,18 +48,16 @@ const DATA: ResidentData[] = [
     details: "Valid ID",
     status: "Pending",
   },
-  
 ];
 
-// Define statuses for this page
 const RESIDENT_STATUSES: (ResidentStatus | "All")[] = ["All", "Pending", "Approved", "Removed"];
 
 export default function ResidentsApproval() {
+  const [residents, setResidents] = useState<ResidentData[]>(DATA);
   const [status, setStatus] = useState<ResidentStatus | "All">("All");
-  const [searchTerm, setSearchTerm] = useState(""); // <-- new state
+  const [searchTerm, setSearchTerm] = useState("");
 
-  // Filter by both status and search term
-  const filteredData = DATA.filter((r) => {
+  const filteredData = residents.filter((r) => {
     const matchesStatus = status === "All" || r.status === status;
     const matchesSearch =
       r.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -68,9 +66,11 @@ export default function ResidentsApproval() {
   });
 
   const handleStatusUpdate = (id: number, newStatus: ResidentStatus) => {
-    const index = DATA.findIndex((r) => r.id === id);
-    if (index !== -1) DATA[index].status = newStatus;
-    // You can trigger a re-render with setState if needed
+    setResidents((prev) =>
+      prev.map((r) =>
+        r.id === id ? { ...r, status: newStatus } : r
+      )
+    );
   };
 
   return (
@@ -82,10 +82,9 @@ export default function ResidentsApproval() {
           Pending Resident Approvals
         </h1>
 
-        {/* FLEX ROW: SearchBar LEFT, StatusFilter RIGHT */}
         <div className="flex items-center gap-4 mb-6">
           <div className="flex-1">
-            <SearchBar onSearch={setSearchTerm} /> {/* <-- pass callback */}
+            <SearchBar onSearch={setSearchTerm} />
           </div>
 
           <div className="flex-none">
@@ -97,9 +96,10 @@ export default function ResidentsApproval() {
           </div>
         </div>
 
-        <div>
-          <ResidentsTable data={filteredData} onUpdateStatus={handleStatusUpdate}/>
-        </div>
+        <ResidentsTable
+          data={filteredData}
+          onUpdateStatus={handleStatusUpdate}
+        />
       </main>
     </div>
   );

@@ -16,7 +16,7 @@ export default function DeleteModal({ service, onClose, onConfirm }: DeleteModal
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 backdrop-blur-sm bg-white/20 flex items-center justify-center p-4 z-50"
       onClick={onClose}
     >
       <div

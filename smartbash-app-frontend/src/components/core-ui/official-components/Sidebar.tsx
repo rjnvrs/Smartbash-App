@@ -19,14 +19,13 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   const menu = [
-  { name: "Dashboard", icon: LayoutDashboard, href: "/dashboards/officials" },
-  { name: "Incident Map", icon: MapPin, href: "/dashboards/officials/incident-map" },
-  { name: "All Reports", icon: FileText, href: "/dashboards/officials/all-reports" },
-  { name: "AI Assistant", icon: Bot, href: "/dashboards/officials/ai-assistant" },
-  { name: "Services", icon: Briefcase, href: "/dashboards/officials/services" },
-  { name: "Residents Approval", icon: Users, href: "/dashboards/officials/residents-approval" },
-];
-
+    { name: "Dashboard", icon: LayoutDashboard, href: "/dashboards/officials" },
+    { name: "Incident Map", icon: MapPin, href: "/dashboards/officials/incident-map" },
+    { name: "All Reports", icon: FileText, href: "/dashboards/officials/all-reports" },
+    { name: "AI Assistant", icon: Bot, href: "/dashboards/officials/ai-assistant" },
+    { name: "Services", icon: Briefcase, href: "/dashboards/officials/services" },
+    { name: "Residents Approval", icon: Users, href: "/dashboards/officials/residents-approval" },
+  ];
 
   return (
     <>
@@ -44,8 +43,7 @@ export default function Sidebar() {
           fixed md:relative z-50
           h-screen bg-white border-r px-5 py-8 flex flex-col
           transition-all duration-300
-          ${collapsed ? "md:w-20" : "md:w-64"}
-          w-64
+          ${collapsed ? "md:w-20 w-20" : "md:w-64 w-64"}
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
           md:translate-x-0
         `}
@@ -91,7 +89,7 @@ export default function Sidebar() {
                   } ${collapsed ? "justify-center px-3" : ""}`}
                 >
                   <item.icon
-                    className={`h-6 w-6 transition ${
+                    className={`h-6 w-6 min-h-6 min-w-6 transition ${
                       active
                         ? "text-green-700"
                         : "text-gray-500 group-hover:text-gray-900"

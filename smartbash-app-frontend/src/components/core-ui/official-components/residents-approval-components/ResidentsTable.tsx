@@ -1,29 +1,49 @@
+"use client";
+
 import ResidentRow, { ResidentData, ResidentStatus } from "./ResidentRow";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table"; // <-- use your prebuilt table
 
 interface ResidentsTableProps {
   data: ResidentData[];
   onUpdateStatus?: (id: number, newStatus: ResidentStatus) => void;
 }
 
-export default function ResidentsTable({ data = [], onUpdateStatus }: ResidentsTableProps) {
+export default function ResidentsTable({
+  data = [],
+  onUpdateStatus,
+}: ResidentsTableProps) {
   return (
     <div className="bg-white rounded-2xl p-4 shadow-sm">
-      {/* HEADER */}
-      <div className="grid grid-cols-8 text-sm text-gray-500 px-4 py-3">
-        <span>Full Name</span>
-        <span>Email Address</span>
-        <span>Contact No.</span>
-        <span>Gender / Age</span>
-        <span className="col-span-2">Details</span>
-        <span>Status</span>
-        <span>Action</span>
-      </div>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Full Name</TableHead>
+            <TableHead>Email Address</TableHead>
+            <TableHead>Contact No.</TableHead>
+            <TableHead>Gender / Age</TableHead>
+            <TableHead className="col-span-2">Details</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Action</TableHead>
+          </TableRow>
+        </TableHeader>
 
-      <div className="space-y-3">
-        {data.map((row, i) => (
-          <ResidentRow key={i} data={row} onUpdateStatus={onUpdateStatus}/>
-        ))}
-      </div>
+        <TableBody>
+          {data.map((row) => (
+            <ResidentRow
+              key={row.id}
+              data={row}
+              onUpdateStatus={onUpdateStatus}
+            />
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
