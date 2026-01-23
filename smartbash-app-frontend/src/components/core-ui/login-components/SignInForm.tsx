@@ -24,6 +24,8 @@ type SignInFormValues = {
   password: string;
 };
 
+type UserRole = "Resident" | "Services" | "BrgyOfficials" | "Admin";
+
 export default function SignInForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -49,21 +51,26 @@ export default function SignInForm() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Login failed");
 
-      // Save tokens
       localStorage.setItem("access", data.access);
       localStorage.setItem("refresh", data.refresh);
 
-      // Redirect based on role 
-      const role = data.role;
+      const role: UserRole = data.role;
 
-      if (role === "Resident") {
-        window.location.href = "/dashboards/residents";
-      } else if (role === "Services") {
-        window.location.href = "/dashboards/services";
-      } else if (role === "BrgyOfficials") {
-        window.location.href = "/dashboards/officials";
-      } else {
-        throw new Error("Invalid role");
+      switch (role) {
+        case "Resident":
+          window.location.href = "/dashboards/residents";
+          break;
+        case "Services":
+          window.location.href = "/dashboards/services";
+          break;
+        case "BrgyOfficials":
+          window.location.href = "/dashboards/officials";
+          break;
+        case "Admin":
+          window.location.href = "/admin";
+          break;
+        default:
+          throw new Error("Invalid role");
       }
     } catch (err: any) {
       setError(err.message);
@@ -74,26 +81,26 @@ export default function SignInForm() {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {/* IMAGE */}
-        <div className="text-center mb-10">
-          <div className="flex justify-center mb-5">
+        <div className="text-center mb-6">
+          <div className="flex justify-center mb-4">
             <Image
               src="/smartbash-signin.png"
               alt="SMARTBASH Login"
-              width={220}
-              height={220}
+              width={180}
+              height={180}
               priority
             />
           </div>
-          <p className="text-lg text-gray-600">
+          <p className="text-base sm:text-lg text-gray-600">
             Sign in to your SMARTBASH account
           </p>
         </div>
 
         {/* API ERROR */}
         {error && (
-          <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded text-lg">
+          <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded text-sm sm:text-base">
             {error}
           </div>
         )}
@@ -105,12 +112,14 @@ export default function SignInForm() {
           rules={{ required: "Email is required" }}
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-lg">Email Address</FormLabel>
+              <FormLabel className="text-base sm:text-lg">
+                Email Address
+              </FormLabel>
               <FormControl>
                 <Input
                   type="email"
                   placeholder="you@example.com"
-                  className="h-12 text-lg"
+                  className="h-11 sm:h-12 text-sm sm:text-lg"
                   {...field}
                 />
               </FormControl>
@@ -126,12 +135,12 @@ export default function SignInForm() {
           rules={{ required: "Password is required" }}
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-lg">Password</FormLabel>
+              <FormLabel className="text-base sm:text-lg">Password</FormLabel>
               <FormControl>
                 <Input
                   type="password"
                   placeholder="Enter your password"
-                  className="h-12 text-lg"
+                  className="h-11 sm:h-12 text-sm sm:text-lg"
                   {...field}
                 />
               </FormControl>
@@ -139,7 +148,7 @@ export default function SignInForm() {
               <div className="text-right">
                 <Link
                   href="/forgot-password"
-                  className="text-base text-blue-600 hover:underline"
+                  className="text-sm sm:text-base text-blue-600 hover:underline"
                 >
                   Forgot password?
                 </Link>
@@ -154,7 +163,7 @@ export default function SignInForm() {
           disabled={isLoading}
           variant="default"
           size="lg"
-          className={`w-full h-11 rounded-full py-4 text-lg ${
+          className={`w-full h-11 sm:h-12 rounded-full text-base sm:text-lg ${
             isLoading
               ? "bg-green-400 cursor-not-allowed"
               : "bg-green-500 hover:bg-green-600"
@@ -164,11 +173,11 @@ export default function SignInForm() {
         </Button>
 
         {/* DIVIDER */}
-        <div className="relative my-4">
+        <div className="relative my-3 sm:my-4">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t" />
           </div>
-          <div className="relative flex justify-center text-base">
+          <div className="relative flex justify-center text-sm sm:text-base">
             <span className="bg-white px-2 text-gray-500">
               Or continue with
             </span>
@@ -177,7 +186,8 @@ export default function SignInForm() {
 
         <SocialLoginButton onClick={() => console.log("Google login")} />
 
-        <p className="text-center text-base text-gray-600">
+        {/* SIGNUP LINK */}
+        <p className="text-center text-sm sm:text-base text-gray-600">
           Don't have an account?{" "}
           <Link href="/register" className="text-blue-600 hover:underline">
             Sign Up

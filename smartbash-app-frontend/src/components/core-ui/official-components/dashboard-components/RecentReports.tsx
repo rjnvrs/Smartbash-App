@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { Flame, MapPin, Waves } from "lucide-react";
-import StatusFilter from "../../../../components/core-ui/official-components/StatusFilter";
+import StatusFilter from "../../../ui/StatusFilter";
 
 type RecentReportsProps = {
   selectedStatus: string;

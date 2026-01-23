@@ -6,9 +6,9 @@ interface FormContainerProps {
   children: ReactNode;
 }
 
-export default function FormContainer({ children }:FormContainerProps) {
+export default function FormContainer({ children }: FormContainerProps) {
   return (
-    <div className="bg-white rounded-lg shadow-lg max-w-lg w-full p-8 border border-gray-200">
+    <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 sm:p-8 border border-gray-200">
       {children}
     </div>
   );

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   FaEllipsisH,
   FaRegComment,
@@ -28,6 +29,8 @@ type Post = {
 };
 
 export default function NewsFeedList() {
+  const router = useRouter();
+
   const [posts, setPosts] = useState<Post[]>([]);
   const [showChooser, setShowChooser] = useState(false);
   const [openComposer, setOpenComposer] = useState(false);
@@ -36,8 +39,7 @@ export default function NewsFeedList() {
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   const [postType, setPostType] = useState<PostType>("EVENT");
-  const [incidentType, setIncidentType] =
-    useState<IncidentType>("Fire");
+  const [incidentType, setIncidentType] = useState<IncidentType>("Fire");
   const [text, setText] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [location, setLocation] = useState("");
@@ -142,6 +144,7 @@ export default function NewsFeedList() {
                 onClick={() => {
                   setPostType("EVENT");
                   setOpenComposer(true);
+                  router.push("/dashboards/residents"); // 🚀 NAVIGATION ADDED
                 }}
               >
                 Create Event Post

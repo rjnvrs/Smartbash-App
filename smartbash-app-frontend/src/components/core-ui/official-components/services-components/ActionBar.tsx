@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import SearchBar from "../SearchBar";
+import SearchBar from "../../../ui/SearchBar";
 import CategoryFilter from "../CategoryFilter";
-import StatusFilter from "../StatusFilter";
+import StatusFilter from "../../../ui/StatusFilter";
 import ServiceModal, { ServiceFormData } from "./ServiceModal";
 import DeleteModal from "./DeleteModal";
 import { Service } from "@/app/dashboards/officials/services/page";
@@ -30,7 +30,7 @@ interface ActionBarProps {
   onEdit: (service: Service) => void;
   onDelete: (id: number) => void;
 
-  searchQuery: string;
+  searchQuery: string;            // <-- must always be string
   setSearchQuery: (value: string) => void;
 
   selectedCategory: ServiceCategory;
@@ -124,7 +124,10 @@ export default function ActionBar({
       <div className="flex flex-wrap items-center gap-4 relative">
         {/* SEARCH BAR */}
         <div className="flex-1 min-w-[200px]">
-          <SearchBar onSearch={setSearchQuery} />
+          <SearchBar
+            value={searchQuery}
+            onSearch={setSearchQuery}
+          />
         </div>
 
         {/* FILTER BUTTON */}

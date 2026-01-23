@@ -2,9 +2,9 @@
 //modified by don
 import { useState } from "react";
 import Sidebar from "../../../../components/core-ui/official-components/Sidebar";
-import SearchBar from "../../../../components/core-ui/official-components/SearchBar";
+import SearchBar from "../../../../components/ui/SearchBar";
 import ResidentsTable from "../../../../components/core-ui/official-components/residents-approval-components/ResidentsTable";
-import StatusFilter from "../../../../components/core-ui/official-components/StatusFilter";
+import StatusFilter from "../../../../components/ui/StatusFilter";
 import { ResidentStatus, ResidentData } from "../../../../components/core-ui/official-components/residents-approval-components/ResidentRow";
 
 const DATA: ResidentData[] = [
@@ -74,32 +74,37 @@ export default function ResidentsApproval() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#FAFAFA]">
+    <div className="flex flex-col md:flex-row min-h-screen bg-[#FAFAFA]">
+      {/* Sidebar */}
       <Sidebar />
 
-      <main className="flex-1 px-10 py-8">
+      <main className="flex-1 px-4 sm:px-6 md:px-10 py-6 md:py-8">
         <h1 className="text-2xl font-semibold mb-5">
           Pending Resident Approvals
         </h1>
 
-        <div className="flex items-center gap-4 mb-6">
-          <div className="flex-1">
-            <SearchBar onSearch={setSearchTerm} />
-          </div>
-
-          <div className="flex-none">
+        {/* Filter + Search */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-6">
+          <div className="flex-none w-full sm:w-auto">
             <StatusFilter
               selectedStatus={status}
               onStatusChange={setStatus}
               options={RESIDENT_STATUSES}
             />
           </div>
+
+          <div className="ml-auto w-full sm:w-auto">
+            <SearchBar value={searchTerm} onSearch={setSearchTerm} />
+          </div>
         </div>
 
-        <ResidentsTable
-          data={filteredData}
-          onUpdateStatus={handleStatusUpdate}
-        />
+        {/* Table */}
+        <div className="overflow-x-auto">
+          <ResidentsTable
+            data={filteredData}
+            onUpdateStatus={handleStatusUpdate}
+          />
+        </div>
       </main>
     </div>
   );

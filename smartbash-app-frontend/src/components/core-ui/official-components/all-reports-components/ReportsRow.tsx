@@ -20,7 +20,7 @@ interface ReportRowProps {
 export default function ReportRow({ report }: ReportRowProps) {
   return (
     <TableRow className="hover:bg-gray-50 transition-colors">
-      {/* Category Column */}
+      {/* Category */}
       <TableCell className="px-3 py-3 md:px-4 lg:px-6 md:py-4">
         <div className="flex items-center">
           <div className="flex-shrink-0 w-6 h-6 md:w-8 md:h-8 rounded-full flex items-center justify-center">
@@ -43,19 +43,19 @@ export default function ReportRow({ report }: ReportRowProps) {
         </div>
       </TableCell>
 
-      {/* Description Column */}
+      {/* Description */}
       <TableCell className="px-3 py-3 md:px-4 lg:px-6 md:py-4">
         <div className="text-xs md:text-sm text-gray-900 line-clamp-2 max-w-[150px] md:max-w-xs">
           {report.description}
         </div>
       </TableCell>
 
-      {/* Location Column - hide on small screens */}
+      {/* Location (hide on mobile) */}
       <TableCell className="hidden md:table-cell px-4 lg:px-6 py-4 whitespace-nowrap">
         <div className="text-sm text-gray-900">{report.location}</div>
       </TableCell>
 
-      {/* Date Column */}
+      {/* Date */}
       <TableCell className="px-3 py-3 md:px-4 lg:px-6 md:py-4 whitespace-nowrap">
         <div className="text-xs md:text-sm text-gray-900">
           <span className="md:hidden">{report.date.split(",")[0]}</span>
@@ -63,7 +63,7 @@ export default function ReportRow({ report }: ReportRowProps) {
         </div>
       </TableCell>
 
-      {/* Status Column */}
+      {/* Status */}
       <TableCell className="px-3 py-3 md:px-4 lg:px-6 md:py-4 whitespace-nowrap">
         <span
           className={`px-2 py-1 md:px-3 md:py-1 inline-flex text-xs leading-4 md:leading-5 font-semibold rounded-full ${report.statusColor}`}
@@ -72,7 +72,7 @@ export default function ReportRow({ report }: ReportRowProps) {
         </span>
       </TableCell>
 
-      {/* Action Buttons Column */}
+      {/* Actions */}
       <TableCell className="px-3 py-3 md:px-4 lg:px-6 md:py-4 whitespace-nowrap">
         <div className="flex flex-col sm:flex-row gap-1 md:gap-2">
           <button className="bg-black text-white text-xs md:text-sm font-medium px-2 py-1 md:px-3 md:py-2 rounded-full hover:bg-gray-900 transition-all duration-200">
