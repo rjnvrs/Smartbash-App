@@ -8,7 +8,7 @@ import {
   TableRow,
   TableHead,
   TableCell,
-} from "@/components/ui/table"; // <-- use your prebuilt table
+} from "@/components/ui/table";
 
 interface ResidentsTableProps {
   data: ResidentData[];

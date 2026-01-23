@@ -1,6 +1,6 @@
 "use client"
 
-import { Truck, User } from "lucide-react";
+import { Truck, User, Phone, Mail, MapPin } from "lucide-react";
 import { JSX } from "react";
 
 export type ServiceVariant = "firetruck" | "rescue";
@@ -82,17 +82,17 @@ export default function ServiceCard({
       {/* DETAILS */}
       <div className="text-sm text-gray-600 space-y-3">
         <div className="flex items-center gap-3">
-          <img src="/services_icons/phone.png" className="w-4 h-4" />
+          <Phone className="w-4 h-4" />
           <span>{phone}</span>
         </div>
 
         <div className="flex items-center gap-3">
-          <img src="/services_icons/email.png" className="w-4 h-4" />
+          <Mail className="w-4 h-4" />
           <span>{email}</span>
         </div>
 
         <div className="flex items-center gap-3">
-          <img src="/services_icons/location.png" className="w-4 h-4" />
+          <MapPin className="w-4 h-4" />
           <span>{address}</span>
         </div>
       </div>

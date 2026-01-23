@@ -93,13 +93,12 @@ export default function Services() {
 
       <main className="flex-1 px-10 py-8 space-y-8">
         {/* HEADER */}
-        <div>
-          <h1 className="text-[28px] font-semibold">Service Management</h1>
-          <p className="text-gray-500">
-            Register and manage emergency response services
-          </p>
-        </div>
-
+      <div className="flex flex-col items-center text-center md:items-end md:text-right w-full">
+        <h1 className="text-[28px] font-semibold">Service Management</h1>
+        <p className="text-gray-500">
+          Register and manage emergency response services
+        </p>
+      </div>
         {/* NOTE */}
         <div className="bg-[#FFF3F3] border border-[#FFD6D6] rounded-2xl px-6 py-4 text-sm">
           <strong>Note: Automated Alert System</strong>

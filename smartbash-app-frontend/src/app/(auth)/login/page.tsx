@@ -8,7 +8,7 @@ export default function page() {
   return (
     <div className="min-h-screen bg-gray-100">
       <Header />
-      <div className="flex items-center justify-center p-8 px-50 py-20">
+      <div className="flex items-center justify-center px-4 py-10">
         <FormContainer>
           <SignInForm />
         </FormContainer>

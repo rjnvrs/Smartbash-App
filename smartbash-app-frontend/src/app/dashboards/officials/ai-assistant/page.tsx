@@ -81,20 +81,24 @@ export default function AiAssistant() {
             
             {/* Chat header */}
             <div className="px-6 py-4 border-b border-green-100 bg-gradient-to-r from-green-50 to-emerald-50">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col items-center justify-center">
                 <div className="flex items-center gap-3">
                   <img
                     src="/logo.png"
                     alt="BASH AI"
                     className="w-10 h-10 rounded-full border border-green-200"
                   />
-                  <div>
+                  <div className="text-center">
                     <h2 className="text-green-800 font-bold">BASH AI Assistant</h2>
                     <p className="text-green-600 text-sm">Emergency Response Intelligence</p>
                   </div>
                 </div>
-                <div className="px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm font-medium">
-                  Online
+
+                {/* Online badge centered below */}
+                <div className="mt-3">
+                  <div className="px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm font-medium">
+                    Online
+                  </div>
                 </div>
               </div>
             </div>

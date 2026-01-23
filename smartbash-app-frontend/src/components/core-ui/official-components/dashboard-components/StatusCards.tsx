@@ -20,7 +20,7 @@ export default function StatusCards() {
       bg: "bg-blue-50",
       text: "text-blue-600",
       border: "border border-blue-200",
-      icon: <TrendingUp className="h-5 w-5 text-blue-500" />
+      icon: <TrendingUp className="h-5 w-5 text-blue-500" />,
     },
     {
       title: "Resolved",
@@ -41,14 +41,16 @@ export default function StatusCards() {
           className={`${s.bg} ${s.border} rounded-xl p-4 flex items-start gap-3`}
         >
           {/* ICON */}
-          <div className="h-9 w-9 rounded-full bg-white flex items-center justify-center shrink-0">
+          <div className="h-10 w-10 rounded-full bg-white flex items-center justify-center shrink-0">
             {s.icon}
           </div>
 
           {/* TEXT */}
           <div className="min-w-0">
-            <div className={`font-medium ${s.text}`}>{s.title}</div>
-            <div className="text-sm text-gray-500 leading-snug">
+            <div className={`font-medium ${s.text} text-sm sm:text-base`}>
+              {s.title}
+            </div>
+            <div className="text-xs sm:text-sm text-gray-500 leading-snug">
               <span className={`font-semibold ${s.text}`}>{s.count}</span>{" "}
               {s.subtitle}
             </div>
