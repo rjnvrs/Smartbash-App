@@ -107,6 +107,17 @@ export function useSignUpForm() {
     }
   };
 
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+  if (e.target.files && e.target.files.length > 0) {
+    setFiles(e.target.files[0]); 
+    }
+  };
+
+  const clearMessages = () => {
+  setErrorMessage("");
+  setSuccessMessage("");
+  };
+
   return {
     role,
     formData,
@@ -118,5 +129,7 @@ export function useSignUpForm() {
     updateField,
     resetForm,
     submit,
+    handleFileChange,
+    clearMessages,
   };
 }
