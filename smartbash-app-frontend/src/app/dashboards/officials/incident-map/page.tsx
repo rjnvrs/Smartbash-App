@@ -9,7 +9,7 @@ import { MapView } from "../../../../components/core-ui/official-components/inci
 import { ClusterDetails } from "../../../../components/core-ui/official-components/incident-map-components/ClusterDetails";
 import { MapSearchBar } from "../../../../components/core-ui/official-components/incident-map-components/MapSearchbar";
 
-// Define types
+/* TYPES */
 export type IncidentType = "fire" | "flood";
 export type UrgencyType = "Low" | "Moderate" | "High" | "Critical";
 
@@ -42,25 +42,23 @@ export default function IncidentMap() {
   ];
 
   const filteredIncidents = useMemo(() => {
-    return allIncidents.filter((incident) => {
-      const typeMatch = selectedType === "All" || incident.type === selectedType;
-      const urgencyMatch = selectedUrgency === "All" || incident.urgency === selectedUrgency;
+    return allIncidents.filter((i) => {
+      const typeMatch = selectedType === "All" || i.type === selectedType;
+      const urgencyMatch = selectedUrgency === "All" || i.urgency === selectedUrgency;
       const searchMatch =
         !searchQuery ||
-        incident.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        incident.type.toLowerCase().includes(searchQuery.toLowerCase());
-
+        i.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        i.type.toLowerCase().includes(searchQuery.toLowerCase());
       return typeMatch && urgencyMatch && searchMatch;
     });
-  }, [allIncidents, selectedType, selectedUrgency, searchQuery]);
+  }, [selectedType, selectedUrgency, searchQuery]);
 
   const clusterIncidents = useMemo(() => {
-    const locationCounts: Record<string, number> = {};
-    filteredIncidents.forEach((incident) => {
-      locationCounts[incident.location] = (locationCounts[incident.location] || 0) + 1;
+    const count: Record<string, number> = {};
+    filteredIncidents.forEach((i) => {
+      count[i.location] = (count[i.location] || 0) + 1;
     });
-    const clusterLocations = Object.keys(locationCounts).filter((loc) => locationCounts[loc] > 1);
-    return filteredIncidents.filter((incident) => clusterLocations.includes(incident.location));
+    return filteredIncidents.filter((i) => count[i.location] > 1);
   }, [filteredIncidents]);
 
   const getIncidentColor = (urgency: UrgencyType) => {
@@ -70,36 +68,57 @@ export default function IncidentMap() {
       High: "bg-red-500",
       Critical: "bg-purple-500",
     };
-    return colors[urgency] || "bg-gray-500";
+    return colors[urgency];
   };
 
   return (
-    <div className="flex h-screen relative">
-      <Sidebar />
+    <div className="flex min-h-screen bg-gray-50">
+      {/* SIDEBAR — DESKTOP ONLY */}
+      <div className="hidden sm:block">
+        <Sidebar />
+      </div>
 
-      <div className="flex-1 flex flex-col overflow-hidden bg-gray-50">
-        <div className="bg-white m-6 rounded-lg shadow-sm p-6">
+      {/* MAIN CONTENT */}
+      <div className="flex-1 overflow-y-auto">
+        
+        {/* HEADER */}
+        <div className="bg-white m-3 sm:m-6 rounded-lg shadow-sm p-4 sm:p-6">
           <MapHeader autoDispatch={autoDispatch} setAutoDispatch={setAutoDispatch} />
           <FilterTabs selectedType={selectedType} onTypeChange={setSelectedType} />
           <UrgencyLegend getIncidentColor={getIncidentColor} />
         </div>
 
-        <div className="flex-1 mx-6 mb-6 flex gap-6 overflow-hidden relative">
+        {/* SEARCH — ALWAYS ABOVE MAP */}
+        <div className="bg-white mx-3 sm:mx-6 rounded-lg shadow-sm p-3">
           <MapSearchBar
             selectedUrgency={selectedUrgency}
             onUrgencyChange={setSelectedUrgency}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
           />
+        </div>
 
-          <MapView
-            incidents={filteredIncidents}
-            getIncidentColor={getIncidentColor}
-            selectedIncident={selectedIncident}
-            setSelectedIncident={setSelectedIncident}
-          />
+        {/* MAP + CLUSTER */}
+        <div className="flex flex-col sm:flex-row gap-4 px-3 sm:px-6 mt-4 pb-6">
+          
+          {/* MAP */}
+          <div className="bg-white rounded-lg shadow-sm p-3 flex-1">
+            <div className="relative h-[300px] sm:h-[calc(100vh-320px)]">
+              <MapView
+                incidents={filteredIncidents}
+                getIncidentColor={getIncidentColor}
+                selectedIncident={selectedIncident}
+                setSelectedIncident={setSelectedIncident}
+              />
+            </div>
+          </div>
 
-          <ClusterDetails clusterIncidents={clusterIncidents} />
+          {/* CLUSTER DETAILS */}
+          {clusterIncidents.length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm p-4 w-full sm:w-96">
+              <ClusterDetails clusterIncidents={clusterIncidents} />
+            </div>
+          )}
         </div>
       </div>
     </div>
