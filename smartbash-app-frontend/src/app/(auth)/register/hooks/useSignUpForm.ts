@@ -2,6 +2,7 @@
 
 import { useState, ChangeEvent, FormEvent } from "react";
 import { validateForm } from "../utils/validation";
+import { signupUser } from "@/lib/api";
 
 type Role = "Resident" | "Services" | "BrgyOfficials";
 
@@ -108,14 +109,14 @@ export function useSignUpForm() {
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-  if (e.target.files && e.target.files.length > 0) {
-    setFiles(e.target.files[0]); 
+    if (e.target.files && e.target.files.length > 0) {
+      setFiles(e.target.files[0]);
     }
   };
 
   const clearMessages = () => {
-  setErrorMessage("");
-  setSuccessMessage("");
+    setErrorMessage("");
+    setSuccessMessage("");
   };
 
   return {
