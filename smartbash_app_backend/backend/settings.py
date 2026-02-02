@@ -34,6 +34,12 @@ INSTALLED_APPS = [
     'api',
     'rest_framework',
     'rest_framework_simplejwt',
+    'accounts',
+    'residents',
+    'officials',
+    'reports',
+    'services',
+    'incidents',
     'auth_app',
     'corsheaders',
     'django.contrib.admin',
@@ -61,8 +67,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ORIGINS = [
     "http://localhost:3000",
     "http://192.168.100.10:3000",
     
@@ -96,7 +102,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'smartbash',          # your database name
         'USER': 'myuser',           # your DB user
-        'PASSWORD': '1234',           # your DB password
+        'PASSWORD': '12345',           # your DB password
         'HOST': '127.0.0.1',          # usually localhost
         'PORT': '5432',               # default PostgreSQL port
     }
