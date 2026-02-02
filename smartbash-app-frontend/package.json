@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "concurrently \"npm:frontend\" \"npm:backend\"",
     "frontend": "next dev",
-    "backend": "cd ../smartbash_app_backend && python manage.py runserver",
+    "backend": "cd ../smartbash_app_backend && venv\\Scripts\\python manage.py runserver",
     "build": "next --turbo build",
     "start": "next start",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",

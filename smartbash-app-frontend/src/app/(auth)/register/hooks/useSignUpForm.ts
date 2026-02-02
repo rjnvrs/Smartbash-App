@@ -20,6 +20,7 @@ export interface FormData {
   location: string;
   barangayName: string;
   contact: string;
+  proofofAuthority?: File | null;
 }
 
 export function useSignUpForm() {
@@ -69,44 +70,54 @@ export function useSignUpForm() {
     setFiles(null);
   };
 
-  const submit = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setErrorMessage("");
-    setSuccessMessage("");
+ const submit = async (e: FormEvent<HTMLFormElement>) => {
+  e.preventDefault();
+  setErrorMessage("");
+  setSuccessMessage("");
 
-    const error = validateForm(role, formData);
-    if (error) return setErrorMessage(error);
+  const error = validateForm(role, formData);
+  if (error) return setErrorMessage(error);
 
-    setIsLoading(true);
+  setIsLoading(true);
 
-    try {
-      const { confirmPassword, ...payload } = {
-        role,
-        ...formData,
-        files: files?.name,
-      };
+  try {
+    const form = new FormData();
 
-      const res = await fetch("http://127.0.0.1:8000/api/auth/signup/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    form.append("role", role);
+    form.append("email", formData.email);
+    form.append("password", formData.password);
 
-      const data = await res.json();
+    // Resident fields
+    form.append("firstName", formData.firstName || "");
+    form.append("middleName", formData.middleName || "");
+    form.append("lastName", formData.lastName || "");
+    form.append("contactNo", formData.contactNo || "");
+    form.append("age", formData.age || "");
+    form.append("gender", formData.gender || "");
+    form.append("location", formData.location || "");
 
-      if (!res.ok) throw new Error(data.message);
+    // Service / Official fields
+    form.append("name", formData.name || "");
+    form.append("barangayName", formData.barangayName || "");
+    form.append("contact", formData.contact || "");
 
-      setSuccessMessage("Registration successful!");
-
-      setTimeout(() => {
-        window.location.href = "/signin";
-      }, 2000);
-    } catch (err: any) {
-      setErrorMessage(err.message || "Registration failed");
-    } finally {
-      setIsLoading(false);
+    if (files) {
+      form.append("proofofAuthority", files);
     }
-  };
+
+    const res = await signupUser(form); // signupUser will handle FormData
+
+    setSuccessMessage("Registration successful!");
+
+    setTimeout(() => {
+      window.location.href = "/login";
+    }, 2000);
+  } catch (err: any) {
+    setErrorMessage(err.message || "Registration failed");
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
