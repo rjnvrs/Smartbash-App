@@ -1,7 +1,7 @@
-from django.urls import path, include
-from smartbash_app_backend.views import home
+from django.urls import path
+from .views import home, health_check
 
 urlpatterns = [
-    path('', home),          # This is the root URL
-    path('api/', include('api.urls')),  # Your existing API URLs
+    path('', home),
+    path('health/', health_check),
 ]
