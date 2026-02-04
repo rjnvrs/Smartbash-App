@@ -9,7 +9,6 @@ import { MapView } from "../../../../components/core-ui/official-components/inci
 import { ClusterDetails } from "../../../../components/core-ui/official-components/incident-map-components/ClusterDetails";
 import { MapSearchBar } from "../../../../components/core-ui/official-components/incident-map-components/MapSearchbar";
 
-/* TYPES */
 export type IncidentType = "fire" | "flood";
 export type UrgencyType = "Low" | "Moderate" | "High" | "Critical";
 
@@ -73,22 +72,17 @@ export default function IncidentMap() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* SIDEBAR — DESKTOP ONLY */}
       <div className="hidden sm:block">
         <Sidebar />
       </div>
 
-      {/* MAIN CONTENT */}
       <div className="flex-1 overflow-y-auto">
-        
-        {/* HEADER */}
         <div className="bg-white m-3 sm:m-6 rounded-lg shadow-sm p-4 sm:p-6">
           <MapHeader autoDispatch={autoDispatch} setAutoDispatch={setAutoDispatch} />
           <FilterTabs selectedType={selectedType} onTypeChange={setSelectedType} />
           <UrgencyLegend getIncidentColor={getIncidentColor} />
         </div>
 
-        {/* SEARCH — ALWAYS ABOVE MAP */}
         <div className="bg-white mx-3 sm:mx-6 rounded-lg shadow-sm p-3">
           <MapSearchBar
             selectedUrgency={selectedUrgency}
@@ -98,10 +92,7 @@ export default function IncidentMap() {
           />
         </div>
 
-        {/* MAP + CLUSTER */}
         <div className="flex flex-col sm:flex-row gap-4 px-3 sm:px-6 mt-4 pb-6">
-          
-          {/* MAP */}
           <div className="bg-white rounded-lg shadow-sm p-3 flex-1">
             <div className="relative h-[300px] sm:h-[calc(100vh-320px)]">
               <MapView
@@ -113,7 +104,6 @@ export default function IncidentMap() {
             </div>
           </div>
 
-          {/* CLUSTER DETAILS */}
           {clusterIncidents.length > 0 && (
             <div className="bg-white rounded-lg shadow-sm p-4 w-full sm:w-96">
               <ClusterDetails clusterIncidents={clusterIncidents} />

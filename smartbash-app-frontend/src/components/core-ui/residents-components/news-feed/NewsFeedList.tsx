@@ -32,11 +32,10 @@ export default function NewsFeedList() {
   const router = useRouter();
 
   const [posts, setPosts] = useState<Post[]>([]);
-  const [showChooser, setShowChooser] = useState(false);
-  const [openComposer, setOpenComposer] = useState(false);
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
 
-  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [showChooser, setShowChooser] = useState(false);
+  const [openComposer, setOpenComposer] = useState(false);
 
   const [postType, setPostType] = useState<PostType>("EVENT");
   const [incidentType, setIncidentType] = useState<IncidentType>("Fire");
@@ -44,6 +43,14 @@ export default function NewsFeedList() {
   const [image, setImage] = useState<string | null>(null);
   const [location, setLocation] = useState("");
   const [showLocationInput, setShowLocationInput] = useState(false);
+
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  /* LOAD POSTS */
+  useEffect(() => {
+    const stored = JSON.parse(localStorage.getItem("newsfeed") || "[]");
+    setPosts(stored);
+  }, []);
 
   /* CLOSE MENU */
   useEffect(() => {
@@ -67,7 +74,7 @@ export default function NewsFeedList() {
 
   /* PUBLISH */
   const handlePublish = () => {
-    if (!text && !image) return;
+    if (!text.trim() && !image) return;
 
     const newPost: Post = {
       id: Date.now(),
@@ -82,7 +89,9 @@ export default function NewsFeedList() {
       saved: false,
     };
 
-    setPosts([newPost, ...posts]);
+    const updated = [newPost, ...posts];
+    setPosts(updated);
+    localStorage.setItem("newsfeed", JSON.stringify(updated));
 
     setText("");
     setImage(null);
@@ -94,32 +103,34 @@ export default function NewsFeedList() {
   };
 
   const toggleInterested = (id: number) => {
-    setPosts((p) =>
-      p.map((x) =>
-        x.id === id ? { ...x, interested: !x.interested } : x
-      )
+    const updated = posts.map(p =>
+      p.id === id ? { ...p, interested: !p.interested } : p
     );
+    setPosts(updated);
+    localStorage.setItem("newsfeed", JSON.stringify(updated));
     setActiveMenu(null);
   };
 
   const toggleSaved = (id: number) => {
-    setPosts((p) =>
-      p.map((x) =>
-        x.id === id ? { ...x, saved: !x.saved } : x
-      )
+    const updated = posts.map(p =>
+      p.id === id ? { ...p, saved: !p.saved } : p
     );
+    setPosts(updated);
+    localStorage.setItem("newsfeed", JSON.stringify(updated));
     setActiveMenu(null);
   };
 
   const deletePost = (id: number) => {
-    setPosts((p) => p.filter((x) => x.id !== id));
+    const updated = posts.filter(p => p.id !== id);
+    setPosts(updated);
+    localStorage.setItem("newsfeed", JSON.stringify(updated));
     setActiveMenu(null);
   };
 
   return (
     <div className="max-w-2xl mx-auto py-6 space-y-6">
 
-      {/* WRITE YOUR STORY */}
+      {/* WRITE */}
       <div
         onClick={() => setShowChooser(true)}
         className="flex items-center gap-3 bg-white border rounded-full px-4 py-3 cursor-pointer hover:bg-gray-50"
@@ -130,38 +141,35 @@ export default function NewsFeedList() {
 
       {/* CHOOSER */}
       {showChooser && !openComposer && (
-        <div className="bg-white border rounded-xl p-6 shadow-sm">
-          <div className="grid grid-cols-2 gap-6">
+        <div className="bg-white border rounded-2xl p-8 shadow-sm">
+          <div className="grid grid-cols-2 gap-8">
 
-            <div className="border rounded-xl p-6 flex flex-col text-center">
+            <div className="border rounded-2xl p-8 text-center">
               <FaMapMarkerAlt className="mx-auto text-green-500 text-3xl" />
               <h3 className="font-semibold mt-4">Post Actual Event</h3>
               <p className="text-sm text-gray-500 mt-2">
                 Share live photos and location in real time.
               </p>
               <button
-                className="mt-auto bg-green-500 text-white py-2 rounded-full w-full"
-                onClick={() => {
-                  setPostType("EVENT");
-                  setOpenComposer(true);
-                  router.push("/dashboards/residents"); // 🚀 NAVIGATION ADDED
-                }}
+                className="mt-6 bg-green-500 text-white py-3 rounded-full w-full"
+                onClick={() => router.push("/dashboards/residents")}
               >
                 Create Event Post
               </button>
             </div>
 
-            <div className="border rounded-xl p-6 flex flex-col text-center">
+            <div className="border rounded-2xl p-8 text-center">
               <div className="mx-auto text-blue-500 text-3xl">?</div>
               <h3 className="font-semibold mt-4">Post for Help</h3>
               <p className="text-sm text-gray-500 mt-2">
                 Use this if you want to help from afar.
               </p>
               <button
-                className="mt-auto bg-blue-600 text-white py-2 rounded-full w-full"
+                className="mt-6 bg-blue-600 text-white py-3 rounded-full w-full"
                 onClick={() => {
                   setPostType("HELP");
                   setOpenComposer(true);
+                  setShowChooser(false);
                 }}
               >
                 Create Help Post
@@ -172,21 +180,18 @@ export default function NewsFeedList() {
         </div>
       )}
 
-      {/* COMPOSER */}
+      {/* COMPOSER (HELP + EVENT UI MATCH IMAGE) */}
       {openComposer && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white w-[820px] rounded-xl shadow-lg">
 
             <div className="flex justify-between px-6 py-4 border-b">
               <p className="font-semibold">
-                {postType === "EVENT" ? "Post Actual Event" : "Post for Help"}
+                {postType === "HELP" ? "Post for Help" : "Post Actual Event"}
               </p>
               <FaTimes
                 className="cursor-pointer"
-                onClick={() => {
-                  setOpenComposer(false);
-                  setShowChooser(false);
-                }}
+                onClick={() => setOpenComposer(false)}
               />
             </div>
 
@@ -239,9 +244,7 @@ export default function NewsFeedList() {
 
                 <FaMapMarkerAlt
                   className="cursor-pointer"
-                  onClick={() =>
-                    setShowLocationInput(!showLocationInput)
-                  }
+                  onClick={() => setShowLocationInput(!showLocationInput)}
                 />
               </div>
 
@@ -261,19 +264,19 @@ export default function NewsFeedList() {
         <div key={post.id} className="bg-white border rounded-xl shadow-sm">
           <div className="flex justify-between p-4">
 
-            <div className="flex gap-3 items-start">
+            <div className="flex gap-3">
               <FaUserCircle className="text-3xl text-gray-400" />
               <div>
                 <p className="font-semibold text-sm">{post.author}</p>
                 <div className="flex gap-2 text-xs text-gray-500">
-                  <span
-                    className={`px-2 rounded-full ${
-                      post.incidentType === "Fire"
-                        ? "bg-red-100 text-red-600"
-                        : "bg-blue-100 text-blue-600"
-                    }`}
-                  >
-                    {post.incidentType}
+                  <span className={`px-2 rounded-full ${
+                    post.postType === "HELP"
+                      ? "bg-blue-100 text-blue-600"
+                      : post.incidentType === "Fire"
+                      ? "bg-red-100 text-red-600"
+                      : "bg-blue-100 text-blue-600"
+                  }`}>
+                    {post.postType === "HELP" ? "Help" : post.incidentType}
                   </span>
                   <span>· {post.time}</span>
                 </div>
@@ -294,22 +297,13 @@ export default function NewsFeedList() {
               />
               {activeMenu === post.id && (
                 <div className="absolute right-0 mt-2 w-44 bg-white border rounded-lg shadow-lg">
-                  <button
-                    onClick={() => toggleInterested(post.id)}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                  >
+                  <button onClick={() => toggleInterested(post.id)} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">
                     {post.interested ? "★ Interested" : "☆ Mark Interested"}
                   </button>
-                  <button
-                    onClick={() => toggleSaved(post.id)}
-                    className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                  >
+                  <button onClick={() => toggleSaved(post.id)} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">
                     {post.saved ? "✓ Saved" : "Save Post"}
                   </button>
-                  <button
-                    onClick={() => deletePost(post.id)}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                  >
+                  <button onClick={() => deletePost(post.id)} className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100">
                     Delete Post
                   </button>
                 </div>
@@ -324,12 +318,8 @@ export default function NewsFeedList() {
           )}
 
           <div className="flex justify-between px-6 py-3 border-t text-sm text-gray-600">
-            <button className="flex items-center gap-2 hover:text-black">
-              <FaRegComment /> Comment
-            </button>
-            <button className="flex items-center gap-2 hover:text-black">
-              <FaShare /> Share
-            </button>
+            <button className="flex items-center gap-2"><FaRegComment /> Comment</button>
+            <button className="flex items-center gap-2"><FaShare /> Share</button>
           </div>
         </div>
       ))}
