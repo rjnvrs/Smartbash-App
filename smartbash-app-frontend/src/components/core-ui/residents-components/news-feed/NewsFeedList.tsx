@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   FaEllipsisH,
   FaRegComment,
@@ -29,8 +28,6 @@ type Post = {
 };
 
 export default function NewsFeedList() {
-  const router = useRouter();
-
   const [posts, setPosts] = useState<Post[]>([]);
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
 
@@ -144,6 +141,7 @@ export default function NewsFeedList() {
         <div className="bg-white border rounded-2xl p-8 shadow-sm">
           <div className="grid grid-cols-2 gap-8">
 
+            {/* EVENT */}
             <div className="border rounded-2xl p-8 text-center">
               <FaMapMarkerAlt className="mx-auto text-green-500 text-3xl" />
               <h3 className="font-semibold mt-4">Post Actual Event</h3>
@@ -152,12 +150,17 @@ export default function NewsFeedList() {
               </p>
               <button
                 className="mt-6 bg-green-500 text-white py-3 rounded-full w-full"
-                onClick={() => router.push("/dashboards/residents")}
+                onClick={() => {
+                  setPostType("EVENT");
+                  setShowChooser(false);
+                  setOpenComposer(true);
+                }}
               >
                 Create Event Post
               </button>
             </div>
 
+            {/* HELP */}
             <div className="border rounded-2xl p-8 text-center">
               <div className="mx-auto text-blue-500 text-3xl">?</div>
               <h3 className="font-semibold mt-4">Post for Help</h3>
@@ -168,8 +171,8 @@ export default function NewsFeedList() {
                 className="mt-6 bg-blue-600 text-white py-3 rounded-full w-full"
                 onClick={() => {
                   setPostType("HELP");
-                  setOpenComposer(true);
                   setShowChooser(false);
+                  setOpenComposer(true);
                 }}
               >
                 Create Help Post
@@ -180,7 +183,7 @@ export default function NewsFeedList() {
         </div>
       )}
 
-      {/* COMPOSER (HELP + EVENT UI MATCH IMAGE) */}
+      {/* COMPOSER */}
       {openComposer && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white w-[820px] rounded-xl shadow-lg">
@@ -263,7 +266,6 @@ export default function NewsFeedList() {
       {posts.map((post) => (
         <div key={post.id} className="bg-white border rounded-xl shadow-sm">
           <div className="flex justify-between p-4">
-
             <div className="flex gap-3">
               <FaUserCircle className="text-3xl text-gray-400" />
               <div>
