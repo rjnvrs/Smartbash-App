@@ -7,6 +7,7 @@ import ChatInput from "../../../../components/core-ui/official-components/ai-ass
 import RecommendationButtons from "../../../../components/core-ui/official-components/ai-assistant-components/RecommendationPanel";
 import { ChatBubbleProps } from "../../../../components/core-ui/official-components/ai-assistant-components/ChatBubble";
 import { Send, UserCircle } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 export default function AiAssistant() {
   const [messages, setMessages] = useState<ChatBubbleProps[]>([
@@ -21,6 +22,8 @@ export default function AiAssistant() {
   ]);
 
   const [inputText, setInputText] = useState("");
+  const [isSending, setIsSending] = useState(false);
+  const [error, setError] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when messages update
@@ -28,23 +31,30 @@ export default function AiAssistant() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const respondAsAI = (userText: string) => {
-    let reply = "Acknowledged. Please provide more details.";
-
-    if (userText.toLowerCase().includes("high-risk")) {
-      reply =
-        "High-risk areas identified: upper floors, stairwells with smoke, and units near the fire origin.";
+  const respondAsAI = async (userText: string) => {
+    setIsSending(true);
+    setError("");
+    try {
+      const res = await apiFetch("/auth/ai/chat/", {
+        method: "POST",
+        body: JSON.stringify({
+          messages: [
+            ...messages.map((m) => ({
+              type: m.type,
+              text: m.text,
+            })),
+            { type: "user", text: userText },
+          ],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "AI request failed");
+      setMessages((prev) => [...prev, { type: "bot", text: data.reply }]);
+    } catch (err: any) {
+      setError(err.message || "AI request failed");
+    } finally {
+      setIsSending(false);
     }
-
-    if (userText.toLowerCase().includes("recommend")) {
-      reply =
-        "Recommended actions: prioritize trapped residents, dispatch fire units to upper floors, and request medical standby.";
-    }
-
-    // Simulate AI thinking delay
-    setTimeout(() => {
-      setMessages((prev) => [...prev, { type: "bot", text: reply }]);
-    }, 700);
   };
 
   const sendMessage = (text: string) => {
@@ -113,6 +123,12 @@ export default function AiAssistant() {
                 </p>
               </div>
 
+              {error && (
+                <div className="mb-3 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
               {/* Chat messages - Full width scrollable area */}
               <div className="flex-1 overflow-y-auto px-2 mb-4">
                 <div className="space-y-4">
@@ -179,7 +195,7 @@ export default function AiAssistant() {
                 <button
                   onClick={() => inputText.trim() && sendMessage(inputText)}
                   className="ml-3 w-10 h-10 rounded-lg bg-green-500 hover:bg-green-600 flex items-center justify-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={!inputText.trim()}
+                  disabled={!inputText.trim() || isSending}
                 >
                   <Send className="w-5 h-5 text-white" />
                 </button>

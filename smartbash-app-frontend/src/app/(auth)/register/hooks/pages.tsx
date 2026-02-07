@@ -14,7 +14,7 @@ export default function RegisterPage() {
     successMessage,
   } = useSignUpForm();
 
-  const handleFileChangeWrapper = (field: keyof typeof formData, file: File) => {
+  const handleFileChangeWrapper = (file: File) => {
     handleFileChange({ target: { files: [file] } } as any);
   };
 

@@ -14,6 +14,7 @@ export interface ResidentData {
   age: number;
   details: string;
   status: ResidentStatus;
+  proofUrl?: string;
 }
 
 interface ResidentRowProps {
@@ -55,7 +56,19 @@ export default function ResidentRow({
           <span>{data.gender}, {data.age}</span>
         </div>
 
-        <p className="text-gray-600">{data.details}</p>
+        <p className="text-gray-600">
+          {data.details}{" "}
+          {data.proofUrl && (
+            <a
+              href={data.proofUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-600 underline ml-1"
+            >
+              View
+            </a>
+          )}
+        </p>
 
         <p className={`font-medium ${statusColor}`}>{status}</p>
 
@@ -95,7 +108,19 @@ export default function ResidentRow({
       <TableCell className="break-all">{data.email}</TableCell>
       <TableCell>{data.contact}</TableCell>
       <TableCell>{data.gender}, {data.age}</TableCell>
-      <TableCell>{data.details}</TableCell>
+      <TableCell>
+        {data.details}{" "}
+        {data.proofUrl && (
+          <a
+            href={data.proofUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-blue-600 underline ml-1"
+          >
+            View
+          </a>
+        )}
+      </TableCell>
       <TableCell className={`font-medium ${statusColor}`}>{status}</TableCell>
       <TableCell>
         <div className="flex gap-2">

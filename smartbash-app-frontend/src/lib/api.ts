@@ -1,4 +1,15 @@
-const API_BASE = "http://127.0.0.1:8000/api";
+export const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE ?? "http://192.168.100.5:8000/api";
+
+export async function parseJsonSafe(res: Response) {
+  const text = await res.text();
+  if (!text) return { data: {}, text: "" };
+  try {
+    return { data: JSON.parse(text), text };
+  } catch {
+    return { data: null, text };
+  }
+}
 
 async function getAuthToken() {
   if (typeof window === "undefined") return null;
@@ -49,17 +60,43 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
   let response = await fetch(`${API_BASE}${url}`, {
     ...options,
     headers,
+    credentials: "include",
   });
 
   // If 401, try to refresh and retry once
-  if (response.status === 401 && typeof window !== "undefined") {
+  if ((response.status === 401 || response.status === 403) && typeof window !== "undefined") {
     const newToken = await refreshAccessToken();
     if (newToken) {
       headers.Authorization = `Bearer ${newToken}`;
       response = await fetch(`${API_BASE}${url}`, {
         ...options,
         headers,
+        credentials: "include",
       });
+    }
+  }
+
+  // If backend returns token_not_valid in JSON body, refresh and retry once
+  if (typeof window !== "undefined") {
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      try {
+        const clone = response.clone();
+        const data = await clone.json();
+        if (data && data.code === "token_not_valid") {
+          const newToken = await refreshAccessToken();
+          if (newToken) {
+            headers.Authorization = `Bearer ${newToken}`;
+            response = await fetch(`${API_BASE}${url}`, {
+              ...options,
+              headers,
+              credentials: "include",
+            });
+          }
+        }
+      } catch {
+        // ignore JSON parse errors
+      }
     }
   }
 
@@ -69,11 +106,22 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
 export async function signupUser(data: any) {
   const useFormData = typeof data !== "object" || data instanceof FormData;
 
-  const res = await fetch(`${API_BASE}/auth/signup/`, {
-    method: "POST",
-    headers: useFormData ? undefined : { "Content-Type": "application/json" },
-    body: useFormData ? data : JSON.stringify(data),
-  });
+  try {
+    const res = await fetch(`${API_BASE}/auth/signup/`, {
+      method: "POST",
+      headers: useFormData ? undefined : { "Content-Type": "application/json" },
+      body: useFormData ? data : JSON.stringify(data),
+      credentials: "include",
+    });
 
-  return res.json();
+    const { data: payload, text } = await parseJsonSafe(res);
+    if (!res.ok) {
+      if (!payload) throw new Error(text || "Registration failed");
+      throw new Error(payload.message || "Registration failed");
+    }
+
+    return payload || {};
+  } catch (error: any) {
+    throw new Error(error?.message || "Network error");
+  }
 }

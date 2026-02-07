@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Flame, MapPin, Waves } from "lucide-react";
 import StatusFilter from "../../../ui/StatusFilter";
+import { apiFetch } from "@/lib/api";
 
 type RecentReportsProps = {
   selectedStatus: string;
@@ -16,6 +18,17 @@ export default function RecentReports({
   searchQuery,
 }: RecentReportsProps) {
   const router = useRouter();
+  const [reports, setReports] = useState<
+    {
+      id: number;
+      category: string;
+      location: string;
+      date: string;
+      status: string;
+    }[]
+  >([]);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const statusOptions = ["All", "Pending", "In Progress", "Completed"];
 
@@ -23,41 +36,62 @@ export default function RecentReports({
     router.push("/dashboards/officials/incident-map");
   };
 
-  const reports = [
-    {
-      category: "Fire",
-      icon: <Flame className="h-5 w-5 text-red-500" />,
-      color: "text-red-600",
-      location: "Laguna, Brgy. Basak, Cebu City",
-      date: "Dec 4, 10:26 AM",
-      status: "In Progress",
-      statusColor: "text-blue-600",
-    },
-    {
-      category: "Flood",
-      icon: <Waves className="h-5 w-5 text-blue-500" />,
-      color: "text-blue-600",
-      location: "Laguna, Brgy. Basak, Cebu City",
-      date: "Dec 5, 10:26 AM",
-      status: "Completed",
-      statusColor: "text-green-600",
-    },
-    {
-      category: "Fire",
-      icon: <Flame className="h-5 w-5 text-red-500" />,
-      color: "text-red-600",
-      location: "Laguna, Brgy. Basak, Cebu City",
-      date: "Dec 5, 10:26 AM",
-      status: "Pending",
-      statusColor: "text-orange-600",
-    },
-  ];
+  const loadReports = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const res = await apiFetch("/auth/officials/reports/recent/", {
+        method: "GET",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to load reports");
+      setReports(data.reports || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load reports");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReports();
+  }, []);
+
+  const decoratedReports = useMemo(
+    () =>
+      reports.map((report) => {
+        const isFire = report.category.toLowerCase() === "fire";
+        const icon = isFire ? (
+          <Flame className="h-5 w-5 text-red-500" />
+        ) : (
+          <Waves className="h-5 w-5 text-blue-500" />
+        );
+        const color = isFire ? "text-red-600" : "text-blue-600";
+        const statusColor =
+          report.status === "Pending"
+            ? "text-orange-600"
+            : report.status === "In Progress"
+            ? "text-blue-600"
+            : "text-green-600";
+        const dateText = report.date
+          ? new Date(report.date).toLocaleString()
+          : "";
+        return {
+          ...report,
+          icon,
+          color,
+          statusColor,
+          date: dateText,
+        };
+      }),
+    [reports]
+  );
 
   // Status Filter
   const statusFiltered =
     selectedStatus === "All"
-      ? reports
-      : reports.filter((report) => report.status === selectedStatus);
+      ? decoratedReports
+      : decoratedReports.filter((report) => report.status === selectedStatus);
 
   // Search Filter
   const filteredReports = statusFiltered.filter((report) => {
@@ -104,7 +138,17 @@ export default function RecentReports({
 
       {/* ROWS */}
       <div className="space-y-4 mt-2">
-        {filteredReports.length > 0 ? (
+        {error && (
+          <div className="px-6 py-4 text-sm text-red-600 bg-red-50 rounded-xl">
+            {error}
+          </div>
+        )}
+        {isLoading && (
+          <div className="px-6 py-4 text-sm text-gray-500 bg-white rounded-xl">
+            Loading reports...
+          </div>
+        )}
+        {!isLoading && filteredReports.length > 0 ? (
           filteredReports.map((report, index) => (
             <div
               key={index}

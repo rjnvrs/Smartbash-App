@@ -83,13 +83,14 @@ export default function ServicesForm({
       <FileUpload
         label="Upload Files"
         instructions={[
-          "• Appointment Letter",
-          "• Oath of Office",
-          "• Barangay Resolution",
-          "• Certificate of Incumbency",
-          "• LGU Endorsement",
+          "Appointment Letter",
+          "Oath of Office",
+          "Barangay Resolution",
+          "Certificate of Incumbency",
+          "LGU Endorsement",
         ]}
         onFileChange={onFileChange}
+        required
       />
     </div>
   );

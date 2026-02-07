@@ -13,7 +13,7 @@ import {
 
 interface UsersTableProps {
   users: User[];
-  onStatusChange: (id: number, status: Status) => void;
+  onStatusChange: (id: number, status: Status, role?: User["role"]) => void;
 }
 
 export default function UsersTable({ users, onStatusChange }: UsersTableProps) {

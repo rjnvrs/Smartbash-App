@@ -2,51 +2,72 @@
 
 import { LogOut, Bell, User, Settings, CheckCircle, XCircle, Clock } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { apiFetch, parseJsonSafe } from "@/lib/api";
 
 export default function AdminHeader() {
   const router = useRouter();
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [adminName, setAdminName] = useState("Admin");
+  const [adminEmail, setAdminEmail] = useState("");
 
   const handleLogout = () => {
+    apiFetch("/auth/logout/", { method: "POST" }).catch(() => {});
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("access");
+      localStorage.removeItem("refresh");
+    }
     router.push("/login");
   };
 
-  const notifications = [
-    {
-      id: 1,
-      title: "New Approval Request",
-      description: "Donita Rose Seguerra is waiting for approval",
-      time: "2 minutes ago",
-      type: "pending",
-      unread: true,
-    },
-    {
-      id: 2,
-      title: "Account Approved",
-      description: "Juan Dela Cruz has been approved",
-      time: "1 hour ago",
-      type: "approved",
-      unread: true,
-    },
-    {
-      id: 3,
-      title: "Account Removed",
-      description: "Maria Santos has been removed",
-      time: "3 hours ago",
-      type: "removed",
-      unread: false,
-    },
-    {
-      id: 4,
-      title: "New Registration",
-      description: "Pedro Martinez registered as Service Provider",
-      time: "5 hours ago",
-      type: "pending",
-      unread: false,
-    },
-  ];
+  useEffect(() => {
+    const loadAdmin = async () => {
+      try {
+        const res = await apiFetch("/auth/admin/me/", { method: "GET" });
+        const { data } = await parseJsonSafe(res);
+        if (res.ok && data) {
+          setAdminName(data.name || "Admin");
+          setAdminEmail(data.email || "");
+        }
+      } catch {
+        // ignore
+      }
+    };
+    loadAdmin();
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadNotifications = async () => {
+      try {
+        const res = await apiFetch("/auth/admin/notifications/", { method: "GET" });
+        const { data } = await parseJsonSafe(res);
+        if (mounted && res.ok && data?.notifications) {
+          setNotifications(data.notifications);
+        }
+      } catch {
+        // ignore
+      }
+    };
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 10000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const [notifications, setNotifications] = useState<
+    Array<{
+      id: string;
+      title: string;
+      description: string;
+      time: string | null;
+      type: string;
+      unread: boolean;
+    }>
+  >([]);
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -71,6 +92,29 @@ export default function AdminHeader() {
         return "bg-red-50 border-l-red-500";
       default:
         return "bg-gray-50 border-l-gray-500";
+    }
+  };
+
+  const markAllRead = async () => {
+    try {
+      await apiFetch("/auth/admin/notifications/read-all/", { method: "POST" });
+      setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
+    } catch {
+      // ignore
+    }
+  };
+
+  const markRead = async (id: string) => {
+    try {
+      await apiFetch("/auth/admin/notifications/read/", {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, unread: false } : n))
+      );
+    } catch {
+      // ignore
     }
   };
 
@@ -114,7 +158,7 @@ export default function AdminHeader() {
           <div>
             <h1 className="text-xl md:text-2xl font-bold text-gray-900">Smartbash Admin</h1>
             <p className="text-sm text-gray-700">
-              Signed in as <span className="text-blue-600">John Doe</span>
+              Signed in as <span className="text-blue-600">{adminName}</span>
             </p>
           </div>
         </div>
@@ -138,7 +182,10 @@ export default function AdminHeader() {
                 <div className="p-4 border-b border-gray-100">
                   <div className="flex items-center justify-between">
                     <h3 className="font-semibold text-gray-900">Notifications</h3>
-                    <span className="text-sm text-blue-600 cursor-pointer hover:underline">
+                    <span
+                      onClick={markAllRead}
+                      className="text-sm text-blue-600 cursor-pointer hover:underline"
+                    >
                       Mark all as read
                     </span>
                   </div>
@@ -151,6 +198,7 @@ export default function AdminHeader() {
                   {notifications.map((notification) => (
                     <div 
                       key={notification.id}
+                      onClick={() => markRead(notification.id)}
                       className={`p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${getNotificationColor(notification.type)} border-l-4`}
                     >
                       <div className="flex items-start gap-3">
@@ -165,11 +213,16 @@ export default function AdminHeader() {
                             )}
                           </div>
                           <p className="text-sm text-gray-600 mt-1">{notification.description}</p>
-                          <p className="text-xs text-gray-400 mt-2">{notification.time}</p>
+                          <p className="text-xs text-gray-400 mt-2">
+                            {formatTimeAgo(notification.time)}
+                          </p>
                         </div>
                       </div>
                     </div>
                   ))}
+                  {notifications.length === 0 && (
+                    <div className="p-4 text-sm text-gray-500">No notifications yet</div>
+                  )}
                 </div>
 
                 <div className="p-4 border-t border-gray-100 bg-gray-50">
@@ -190,8 +243,8 @@ export default function AdminHeader() {
               <User className="h-4 w-4 text-white" />
             </div>
             <div className="hidden md:block">
-              <span className="text-sm font-medium text-gray-900">John Doe</span>
-              <p className="text-xs text-gray-500">john.doe@smartbash.com</p>
+              <span className="text-sm font-medium text-gray-900">{adminName}</span>
+              <p className="text-xs text-gray-500">{adminEmail}</p>
             </div>
           </div>
 
@@ -222,4 +275,17 @@ export default function AdminHeader() {
       </header>
     </>
   );
+}
+
+function formatTimeAgo(isoTime: string | null) {
+  if (!isoTime) return "just now";
+  const date = new Date(isoTime);
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
 }

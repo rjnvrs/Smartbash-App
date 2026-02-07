@@ -4,7 +4,7 @@ import type { User, Status } from "./types";
 
 interface UserRowProps {
   user: User;
-  onStatusChange: (id: number, status: Status) => void;
+  onStatusChange: (id: number, status: Status, role?: User["role"]) => void;
 }
 
 export default function UserRow({ user, onStatusChange }: UserRowProps) {
@@ -14,14 +14,20 @@ export default function UserRow({ user, onStatusChange }: UserRowProps) {
       <td className="px-4 py-3.5 text-sm">{user.email}</td>
       <td className="px-4 py-3.5">{user.contact}</td>
       <td className="px-4 py-3.5">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           <span className="truncate max-w-[150px]">{user.details}</span>
-          <a
-            href="#"
-            className="text-blue-600 hover:text-blue-800 hover:underline text-sm whitespace-nowrap"
-          >
-            View
-          </a>
+          {user.proofUrl ? (
+            <a
+              href={user.proofUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-blue-600 hover:text-blue-800 hover:underline text-sm whitespace-nowrap"
+            >
+              View proof
+            </a>
+          ) : (
+            <span className="text-xs text-gray-400 whitespace-nowrap">No file</span>
+          )}
         </div>
       </td>
 
@@ -46,13 +52,13 @@ export default function UserRow({ user, onStatusChange }: UserRowProps) {
           {user.status === "Pending" ? (
             <>
               <button
-                onClick={() => onStatusChange(user.id, "Approved")}
+                onClick={() => onStatusChange(user.id, "Approved", user.role)}
                 className="bg-green-500 text-white px-3 py-1.5 rounded-md text-sm hover:bg-green-600 transition-colors"
               >
                 Approve
               </button>
               <button
-                onClick={() => onStatusChange(user.id, "Removed")}
+                onClick={() => onStatusChange(user.id, "Removed", user.role)}
                 className="bg-red-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-red-700 transition-colors"
               >
                 Remove
@@ -60,7 +66,7 @@ export default function UserRow({ user, onStatusChange }: UserRowProps) {
             </>
           ) : (
             <button
-              onClick={() => onStatusChange(user.id, "Pending")}
+              onClick={() => onStatusChange(user.id, "Pending", user.role)}
               className="bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm hover:bg-black transition-colors"
             >
               Cancel

@@ -1,61 +1,42 @@
 "use client";
 //modified by don
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "../../../../components/core-ui/official-components/Sidebar";
 import SearchBar from "../../../../components/ui/SearchBar";
 import ResidentsTable from "../../../../components/core-ui/official-components/residents-approval-components/ResidentsTable";
 import StatusFilter from "../../../../components/ui/StatusFilter";
 import { ResidentStatus, ResidentData } from "../../../../components/core-ui/official-components/residents-approval-components/ResidentRow";
-
-const DATA: ResidentData[] = [
-  {
-    id: 1,
-    name: "Karl Owen Pelayo",
-    email: "KarlPelayo@gmail.com",
-    contact: "094345435",
-    gender: "M",
-    age: 17,
-    details: "Valid ID, Proof of Authority",
-    status: "Pending",
-  },
-  {
-    id: 2,
-    name: "Mark Daniel Fernandez",
-    email: "MarkFernandez@gmail.com",
-    contact: "094345435",
-    gender: "M",
-    age: 21,
-    details: "Valid ID, Proof of Authority",
-    status: "Approved",
-  },
-  {
-    id: 3,
-    name: "Rica Jane Navares",
-    email: "Ricanavares@gmail.com",
-    contact: "094345435",
-    gender: "F",
-    age: 21,
-    details: "Valid ID",
-    status: "Removed",
-  },
-  {
-    id: 4,
-    name: "Donita Seguerra yeaah",
-    email: "trytry1@gmail.com",
-    contact: "094345435",
-    gender: "F",
-    age: 12,
-    details: "Valid ID",
-    status: "Pending",
-  },
-];
+import { apiFetch } from "@/lib/api";
 
 const RESIDENT_STATUSES: (ResidentStatus | "All")[] = ["All", "Pending", "Approved", "Removed"];
 
 export default function ResidentsApproval() {
-  const [residents, setResidents] = useState<ResidentData[]>(DATA);
+  const [residents, setResidents] = useState<ResidentData[]>([]);
   const [status, setStatus] = useState<ResidentStatus | "All">("All");
   const [searchTerm, setSearchTerm] = useState("");
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const loadResidents = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const res = await apiFetch("/auth/officials/residents/pending/", {
+        method: "GET",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to load residents");
+      setResidents(data.residents || []);
+    } catch (err: any) {
+      setError(err.message || "Failed to load residents");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadResidents();
+  }, []);
 
   const filteredData = residents.filter((r) => {
     const matchesStatus = status === "All" || r.status === status;
@@ -65,12 +46,40 @@ export default function ResidentsApproval() {
     return matchesStatus && matchesSearch;
   });
 
-  const handleStatusUpdate = (id: number, newStatus: ResidentStatus) => {
-    setResidents((prev) =>
-      prev.map((r) =>
-        r.id === id ? { ...r, status: newStatus } : r
-      )
-    );
+  const handleStatusUpdate = async (id: number, newStatus: ResidentStatus) => {
+    try {
+      if (newStatus === "Approved") {
+        const res = await apiFetch("/auth/officials/residents/approve/", {
+          method: "POST",
+          body: JSON.stringify({ res_id: id }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Approve failed");
+      }
+
+      if (newStatus === "Removed") {
+        const res = await apiFetch("/auth/officials/residents/remove/", {
+          method: "POST",
+          body: JSON.stringify({ res_id: id }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Remove failed");
+      }
+
+      if (newStatus === "Pending") {
+        // Re-fetch to restore pending list
+        await loadResidents();
+        return;
+      }
+
+      setResidents((prev) =>
+        prev.map((r) =>
+          r.id === id ? { ...r, status: newStatus } : r
+        )
+      );
+    } catch (err: any) {
+      setError(err.message || "Update failed");
+    }
   };
 
   return (
@@ -97,6 +106,16 @@ export default function ResidentsApproval() {
             <SearchBar value={searchTerm} onSearch={setSearchTerm} />
           </div>
         </div>
+
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded text-sm">
+            {error}
+          </div>
+        )}
+
+        {isLoading && (
+          <div className="mb-4 text-sm text-gray-500">Loading residents...</div>
+        )}
 
         {/* Table */}
         <div className="overflow-x-auto">

@@ -56,7 +56,7 @@ const mapServiceToFormData = (
   serviceName: service.title,
   contact: service.phone,
   email: service.email,
-  location: service.address,
+  address: service.address,
   status: service.status,
 });
 
@@ -88,7 +88,7 @@ export default function ActionBar({
         chief: "",
         phone: data.contact,
         email: data.email,
-        address: data.location,
+        address: data.address,
         type: data.serviceType as "Fire" | "Rescue",
         status: data.status,
         variant: data.serviceType === "Fire" ? "firetruck" : "rescue",
@@ -99,7 +99,7 @@ export default function ActionBar({
         title: data.serviceName,
         phone: data.contact,
         email: data.email,
-        address: data.location,
+        address: data.address,
         status: data.status,
       });
     }

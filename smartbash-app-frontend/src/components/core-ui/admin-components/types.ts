@@ -10,4 +10,5 @@ export interface User {
   details: string;
   status: Status;
   role: Role;
+  proofUrl?: string;
 }

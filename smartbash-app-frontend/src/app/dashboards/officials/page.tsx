@@ -1,15 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "../../../components/core-ui/official-components/Sidebar";
 import Topbar from "../../../components/core-ui/official-components/Topbar";
 import StatCards from "../../../components/core-ui/official-components/dashboard-components/StatCards";
 import StatusCards from "../../../components/core-ui/official-components/dashboard-components/StatusCards";
 import RecentReports from "../../../components/core-ui/official-components/dashboard-components/RecentReports";
+import { apiFetch } from "@/lib/api";
 
 export default function page() {
   const [selectedStatus, setSelectedStatus] = useState<string>("All");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [summary, setSummary] = useState({
+    totalReports: 0,
+    fireReports: 0,
+    floodReports: 0,
+    pendingReports: 0,
+    inProgressReports: 0,
+    resolvedReports: 0,
+  });
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const loadSummary = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const res = await apiFetch("/auth/officials/dashboard/", { method: "GET" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to load summary");
+      setSummary({
+        totalReports: data.totalReports || 0,
+        fireReports: data.fireReports || 0,
+        floodReports: data.floodReports || 0,
+        pendingReports: data.pendingReports || 0,
+        inProgressReports: data.inProgressReports || 0,
+        resolvedReports: data.resolvedReports || 0,
+      });
+    } catch (err: any) {
+      setError(err.message || "Failed to load summary");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadSummary();
+  }, []);
 
   return (
     <div className="min-h-screen w-full flex flex-col md:flex-row overflow-hidden">
@@ -32,8 +69,24 @@ export default function page() {
           </div>
 
           <div className="space-y-4">
-            <StatCards />
-            <StatusCards />
+            {error && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded text-sm">
+                {error}
+              </div>
+            )}
+            {isLoading && (
+              <div className="text-sm text-gray-500">Loading summary...</div>
+            )}
+            <StatCards
+              totalReports={summary.totalReports}
+              fireReports={summary.fireReports}
+              floodReports={summary.floodReports}
+            />
+            <StatusCards
+              pendingReports={summary.pendingReports}
+              inProgressReports={summary.inProgressReports}
+              resolvedReports={summary.resolvedReports}
+            />
 
             {/* pass searchQuery to RecentReports */}
             <RecentReports

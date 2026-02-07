@@ -5,9 +5,10 @@ interface FileUploadProps {
   label: string;
   instructions?: string[];
   onFileChange?: (file: File) => void;
+  required?: boolean;
 }
 
-export default function FileUpload({ label, instructions, onFileChange }: FileUploadProps) {
+export default function FileUpload({ label, instructions, onFileChange, required }: FileUploadProps) {
   const [fileName, setFileName] = useState("");
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -24,7 +25,7 @@ export default function FileUpload({ label, instructions, onFileChange }: FileUp
   return (
     <div>
       <label className="block mb-2 font-medium text-sm text-gray-700">
-        {label} (Required)
+        {label}{required ? " (Required)" : ""}
       </label>
       <div className="border border-gray-300 rounded-md p-6 bg-gray-50">
         <div className="text-sm text-gray-600 mb-4 space-y-2">
@@ -41,7 +42,7 @@ export default function FileUpload({ label, instructions, onFileChange }: FileUp
             </span>
             <input
               type="file"
-              accept=".pdf,.doc,.docx,.jpg,.png"
+              accept=".pdf,.jpg,.jpeg,.png"
               onChange={handleFileChange}
               className="hidden"
             />

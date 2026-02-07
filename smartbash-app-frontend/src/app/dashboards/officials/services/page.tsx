@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Sidebar from "../../../../components/core-ui/official-components/Sidebar";
 import StatCard from "../../../../components/core-ui/official-components/services-components/StatCard";
 import ActionBar from "@/components/core-ui/official-components/services-components/ActionBar";
 import ServiceCard from "@/components/core-ui/official-components/services-components/ServiceCard";
 import { ServiceStatus, ServiceCategory } from "@/components/core-ui/official-components/services-components/ActionBar";
+import { apiFetch } from "@/lib/api";
 
 export type ServiceVariant = "firetruck" | "rescue";
 
@@ -22,50 +23,101 @@ export interface Service {
 }
 
 export default function Services() {
-  const [services, setServices] = useState<Service[]>([
-    {
-      id: 1,
-      title: "Cebu City Fire Station",
-      chief: "Chief Juan Dela Cruz",
-      phone: "+63 917 123 4567",
-      email: "firestation@cebu.gov.ph",
-      address: "123 Osmeña Boulevard, Cebu City",
-      type: "Fire",
-      status: "Active",
-      variant: "firetruck",
-    },
-    {
-      id: 2,
-      title: "Cebu City Rescue Unit",
-      chief: "Chief Josh Dela Cruz",
-      phone: "+63 917 123 4567",
-      email: "floodunit@cebu.gov.ph",
-      address: "123 Osmeña Boulevard, Cebu City",
-      type: "Rescue",
-      status: "Busy",
-      variant: "rescue",
-    },
-  ]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<ServiceCategory>("All");
   const [selectedStatus, setSelectedStatus] = useState<ServiceStatus | "All">("All");
 
-  const handleAddService = (newService: Omit<Service, "id">) => {
-    const nextId = services.length ? Math.max(...services.map(s => s.id)) + 1 : 1;
-    setServices([...services, { ...newService, id: nextId }]);
+  const loadServices = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const res = await apiFetch("/auth/officials/services/", { method: "GET" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to load services");
+      const list: Service[] = (data.services || []).map((s: any) => ({
+        id: s.id,
+        title: s.title,
+        chief: s.chief || "",
+        phone: s.phone || "",
+        email: s.email || "",
+        address: s.address || "",
+        type: s.type === "Fire" ? "Fire" : "Rescue",
+        status: s.status,
+        variant: s.type === "Fire" ? "firetruck" : "rescue",
+      }));
+      setServices(list);
+    } catch (err: any) {
+      setError(err.message || "Failed to load services");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleEditService = (updatedService: Service) => {
-    setServices(
-      services.map((s) => (s.id === updatedService.id ? updatedService : s))
-    );
+  useEffect(() => {
+    loadServices();
+  }, []);
+
+  const handleAddService = async (newService: Omit<Service, "id">) => {
+    try {
+      const res = await apiFetch("/auth/officials/services/create/", {
+        method: "POST",
+        body: JSON.stringify({
+          title: newService.title,
+          phone: newService.phone,
+          email: newService.email,
+          address: newService.address,
+          type: newService.type,
+          status: newService.status,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Create failed");
+      await loadServices();
+    } catch (err: any) {
+      setError(err.message || "Create failed");
+    }
   };
 
-  const handleDeleteService = (id: number) => {
-    setServices(services.filter((s) => s.id !== id));
-    setSelectedService(null);
+  const handleEditService = async (updatedService: Service) => {
+    try {
+      const res = await apiFetch("/auth/officials/services/update/", {
+        method: "POST",
+        body: JSON.stringify({
+          id: updatedService.id,
+          title: updatedService.title,
+          phone: updatedService.phone,
+          email: updatedService.email,
+          address: updatedService.address,
+          type: updatedService.type,
+          status: updatedService.status,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Update failed");
+      await loadServices();
+    } catch (err: any) {
+      setError(err.message || "Update failed");
+    }
+  };
+
+  const handleDeleteService = async (id: number) => {
+    try {
+      const res = await apiFetch("/auth/officials/services/delete/", {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Delete failed");
+      await loadServices();
+      setSelectedService(null);
+    } catch (err: any) {
+      setError(err.message || "Delete failed");
+    }
   };
 
   // Filter services based on search, category, and status
@@ -110,8 +162,16 @@ export default function Services() {
 
         {/* STATS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <StatCard title="Fire Services" count={54} variant="fire" />
-          <StatCard title="Flood Rescue Teams" count={54} variant="flood" />
+          <StatCard
+            title="Fire Services"
+            count={services.filter((s) => s.type === "Fire").length}
+            variant="fire"
+          />
+          <StatCard
+            title="Flood Rescue Teams"
+            count={services.filter((s) => s.type === "Rescue").length}
+            variant="flood"
+          />
         </div>
 
         {/* ACTION BAR */}
@@ -128,6 +188,15 @@ export default function Services() {
           selectedStatus={selectedStatus}
           setSelectedStatus={setSelectedStatus}
         />
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+        {isLoading && (
+          <div className="text-sm text-gray-500">Loading services...</div>
+        )}
 
         {/* SERVICES */}
         <div>
@@ -153,3 +222,5 @@ export default function Services() {
     </div>
   );
 }
+
+

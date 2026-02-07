@@ -2,11 +2,21 @@
 
 import { AlertTriangle, CheckCircle2, TrendingUp } from "lucide-react";
 
-export default function StatusCards() {
+interface StatusCardsProps {
+  pendingReports: number;
+  inProgressReports: number;
+  resolvedReports: number;
+}
+
+export default function StatusCards({
+  pendingReports,
+  inProgressReports,
+  resolvedReports,
+}: StatusCardsProps) {
   const statuses = [
     {
       title: "Pending",
-      count: 12,
+      count: pendingReports,
       subtitle: "reports awaiting response",
       bg: "bg-orange-50",
       text: "text-orange-600",
@@ -15,7 +25,7 @@ export default function StatusCards() {
     },
     {
       title: "In Progress",
-      count: 3,
+      count: inProgressReports,
       subtitle: "reports being addressed",
       bg: "bg-blue-50",
       text: "text-blue-600",
@@ -24,7 +34,7 @@ export default function StatusCards() {
     },
     {
       title: "Resolved",
-      count: 5,
+      count: resolvedReports,
       subtitle: "reports completed",
       bg: "bg-green-50",
       text: "text-green-600",

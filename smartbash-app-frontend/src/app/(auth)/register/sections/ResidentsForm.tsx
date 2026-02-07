@@ -8,7 +8,7 @@ import { FormData } from "../hooks/useSignUpForm";
 interface ResidentFormProps {
   formData: FormData;
   updateField: (field: keyof FormData, value: any) => void; // value can be string, number, or File
-  onFileChange: (field: keyof FormData, file: File) => void;
+  onFileChange: (file: File) => void;
   isLoading: boolean;
 }
 
@@ -20,7 +20,7 @@ export default function ResidentsForm({
 }: ResidentFormProps) {
   // File handler
   const handleFileChange = (file: File) => {
-    onFileChange("proofofAuthority", file);
+    onFileChange(file);
 };
 
   return (
@@ -112,6 +112,21 @@ export default function ResidentsForm({
         />
 
         <select
+          value={formData.location}
+          onChange={(e) => updateField("location", e.target.value)}
+          className="border rounded-md p-2"
+          disabled={isLoading}
+        >
+          <option value="">Select Barangay</option>
+          <option value="Barangay Pahina San Nicolas">
+            Barangay Pahina San Nicolas
+          </option>
+          <option value="Barangay Duljo Fatima">Barangay Duljo Fatima</option>
+          <option value="Barangay Cogon Pardo">Barangay Cogon Pardo</option>
+          <option value="Barangay Bulacao Pardo">Barangay Bulacao Pardo</option>
+        </select>
+
+        <select
           value={formData.gender}
           onChange={(e) => updateField("gender", e.target.value)}
           className="border rounded-md p-2"
@@ -133,6 +148,7 @@ export default function ResidentsForm({
           "Please upload a valid document of a parent or legal guardian.",
         ]}
         onFileChange={handleFileChange}
+        required
       />
     </div>
   );

@@ -9,20 +9,30 @@ import {
   CardAction,
 } from "@/components/ui/card";
 
-export default function StatCards() {
+interface StatCardsProps {
+  totalReports: number;
+  fireReports: number;
+  floodReports: number;
+}
+
+export default function StatCards({
+  totalReports,
+  fireReports,
+  floodReports,
+}: StatCardsProps) {
   const stats = [
     {
       title: "Total Reports",
-      value: "162",
+      value: String(totalReports),
       highlight: true,
     },
     {
       title: "Fire Reports",
-      value: "54",
+      value: String(fireReports),
     },
     {
       title: "Flood Reports",
-      value: "54",
+      value: String(floodReports),
     },
   ];
 

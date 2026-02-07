@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import SocialLoginButton from "./SocialLoginButton";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import {
@@ -18,6 +18,7 @@ import {
 
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { API_BASE } from "@/lib/api";
 
 type SignInFormValues = {
   email: string;
@@ -37,14 +38,29 @@ export default function SignInForm() {
     },
   });
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const savedEmail = localStorage.getItem("smartbash_login_email");
+    if (savedEmail) {
+      form.setValue("email", savedEmail);
+    }
+    const subscription = form.watch((value) => {
+      if (value?.email !== undefined) {
+        localStorage.setItem("smartbash_login_email", value.email || "");
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
+
   const onSubmit = async (values: SignInFormValues) => {
     setError("");
     setIsLoading(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/auth/login/", {
+      const response = await fetch(`${API_BASE}/auth/login/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify(values),
       });
 

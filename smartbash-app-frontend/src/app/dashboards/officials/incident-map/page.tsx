@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Sidebar from "../../../../components/core-ui/official-components/Sidebar";
 import { MapHeader } from "../../../../components/core-ui/official-components/incident-map-components/MapHeader";
 import { FilterTabs } from "../../../../components/core-ui/official-components/incident-map-components/FilterTabs";
@@ -8,6 +8,7 @@ import { UrgencyLegend } from "../../../../components/core-ui/official-component
 import { MapView } from "../../../../components/core-ui/official-components/incident-map-components/MapView";
 import { ClusterDetails } from "../../../../components/core-ui/official-components/incident-map-components/ClusterDetails";
 import { MapSearchBar } from "../../../../components/core-ui/official-components/incident-map-components/MapSearchbar";
+import { apiFetch, parseJsonSafe } from "@/lib/api";
 
 /* TYPES */
 export type IncidentType = "fire" | "flood";
@@ -29,20 +30,35 @@ export default function IncidentMap() {
   const [selectedType, setSelectedType] = useState<IncidentType | "All">("All");
   const [selectedUrgency, setSelectedUrgency] = useState<UrgencyType | "All">("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [clusterCollapsed, setClusterCollapsed] = useState(false);
 
-  const allIncidents: Incident[] = [
-    { id: 1, type: "fire", urgency: "High", lat: 10.3, lon: 123.9, reports: 9, location: "Basak Pardo, Cebu City" },
-    { id: 2, type: "flood", urgency: "High", lat: 10.35, lon: 123.92, reports: 8, location: "Basak Pardo, Cebu City" },
-    { id: 3, type: "fire", urgency: "Critical", lat: 10.32, lon: 123.88, reports: 10, location: "Labangon, Cebu City" },
-    { id: 4, type: "flood", urgency: "Moderate", lat: 10.28, lon: 123.85, reports: 3, location: "Talisay City" },
-    { id: 5, type: "fire", urgency: "Low", lat: 10.25, lon: 123.83, reports: 1, location: "San Fernando" },
-    { id: 6, type: "fire", urgency: "Moderate", lat: 10.31, lon: 123.91, reports: 5, location: "Basak Pardo, Cebu City" },
-    { id: 7, type: "flood", urgency: "High", lat: 10.33, lon: 123.89, reports: 7, location: "Basak Pardo, Cebu City" },
-    { id: 8, type: "fire", urgency: "Critical", lat: 10.31, lon: 123.87, reports: 12, location: "Labangon, Cebu City" },
-  ];
+  const loadIncidents = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const res = await apiFetch("/auth/officials/incidents/map/", { method: "GET" });
+      const { data, text } = await parseJsonSafe(res);
+      if (!res.ok) {
+        if (!data) throw new Error(text || "Failed to load incidents");
+        throw new Error(data.message || "Failed to load incidents");
+      }
+      setIncidents((data?.incidents || []) as Incident[]);
+    } catch (err: any) {
+      setError(err.message || "Failed to load incidents");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadIncidents();
+  }, []);
 
   const filteredIncidents = useMemo(() => {
-    return allIncidents.filter((i) => {
+    return incidents.filter((i) => {
       const typeMatch = selectedType === "All" || i.type === selectedType;
       const urgencyMatch = selectedUrgency === "All" || i.urgency === selectedUrgency;
       const searchMatch =
@@ -51,14 +67,10 @@ export default function IncidentMap() {
         i.type.toLowerCase().includes(searchQuery.toLowerCase());
       return typeMatch && urgencyMatch && searchMatch;
     });
-  }, [selectedType, selectedUrgency, searchQuery]);
+  }, [selectedType, selectedUrgency, searchQuery, incidents]);
 
   const clusterIncidents = useMemo(() => {
-    const count: Record<string, number> = {};
-    filteredIncidents.forEach((i) => {
-      count[i.location] = (count[i.location] || 0) + 1;
-    });
-    return filteredIncidents.filter((i) => count[i.location] > 1);
+    return [...filteredIncidents].sort((a, b) => b.reports - a.reports);
   }, [filteredIncidents]);
 
   const getIncidentColor = (urgency: UrgencyType) => {
@@ -74,7 +86,7 @@ export default function IncidentMap() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* SIDEBAR — DESKTOP ONLY */}
-      <div className="hidden sm:block">
+      <div>
         <Sidebar />
       </div>
 
@@ -104,6 +116,16 @@ export default function IncidentMap() {
           {/* MAP */}
           <div className="bg-white rounded-lg shadow-sm p-3 flex-1">
             <div className="relative h-[300px] sm:h-[calc(100vh-320px)]">
+              {error && (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-red-600">
+                  {error}
+                </div>
+              )}
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500">
+                  Loading incidents...
+                </div>
+              )}
               <MapView
                 incidents={filteredIncidents}
                 getIncidentColor={getIncidentColor}
@@ -114,9 +136,21 @@ export default function IncidentMap() {
           </div>
 
           {/* CLUSTER DETAILS */}
-          {clusterIncidents.length > 0 && (
+          {clusterCollapsed ? (
+            <button
+              onClick={() => setClusterCollapsed(false)}
+              className="hidden sm:flex h-10 w-10 rounded-xl border bg-white shadow-sm items-center justify-center"
+              aria-label="Open cluster details"
+            >
+              ⇦
+            </button>
+          ) : (
             <div className="bg-white rounded-lg shadow-sm p-4 w-full sm:w-96">
-              <ClusterDetails clusterIncidents={clusterIncidents} />
+              <ClusterDetails
+                clusterIncidents={clusterIncidents}
+                collapsed={clusterCollapsed}
+                onToggle={() => setClusterCollapsed(true)}
+              />
             </div>
           )}
         </div>

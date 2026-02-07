@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, ChangeEvent, FormEvent } from "react";
+import { useState, ChangeEvent, FormEvent, useEffect } from "react";
 import { validateForm } from "../utils/validation";
 import { signupUser } from "@/lib/api";
 
@@ -50,6 +50,39 @@ export function useSignUpForm() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = localStorage.getItem("smartbash_register_form");
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed?.role) setRole(parsed.role as Role);
+      if (parsed?.formData) {
+        setFormData((prev) => ({
+          ...prev,
+          ...parsed.formData,
+          password: "",
+          confirmPassword: "",
+        }));
+      }
+    } catch {
+      // ignore malformed storage
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sanitized = {
+      ...formData,
+      password: "",
+      confirmPassword: "",
+    };
+    localStorage.setItem(
+      "smartbash_register_form",
+      JSON.stringify({ role, formData: sanitized })
+    );
+  }, [role, formData]);
+
   const resetForm = (newRole: Role) => {
     setRole(newRole);
     setFormData({
@@ -68,14 +101,16 @@ export function useSignUpForm() {
       contact: "",
     });
     setFiles(null);
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("smartbash_register_form");
+    }
   };
 
- const submit = async (e: FormEvent<HTMLFormElement>) => {
-  e.preventDefault();
+ const submit = async () => {
   setErrorMessage("");
   setSuccessMessage("");
 
-  const error = validateForm(role, formData);
+  const error = validateForm(role, formData, files);
   if (error) return setErrorMessage(error);
 
   setIsLoading(true);
@@ -106,10 +141,14 @@ export function useSignUpForm() {
     }
 
     const res = await signupUser(form); // signupUser will handle FormData
-
-    setSuccessMessage("Registration successful!");
+    const createdId = res?.created_id ?? "n/a";
+    const roleInfo = res?.role ? ` (${res.role})` : "";
+    setSuccessMessage(`Registration successful${roleInfo}. ID: ${createdId}`);
 
     setTimeout(() => {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("smartbash_register_form");
+      }
       window.location.href = "/login";
     }, 2000);
   } catch (err: any) {

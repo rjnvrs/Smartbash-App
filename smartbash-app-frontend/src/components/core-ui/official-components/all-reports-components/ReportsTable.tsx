@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import ReportRow, { Report } from "./ReportsRow";
 import {
   Table,
@@ -9,39 +10,10 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
+import { apiFetch } from "@/lib/api";
 
 export type ReportStatus = "All Status" | "Pending" | "In Progress" | "Completed";
 export type ReportCategory = "All Categories" | "Fire" | "Flood";
-
-const reportsData: Report[] = [
-  {
-    id: 1,
-    category: "Fire",
-    description: "Na sunog ngn naktta sa likad sa residentia area. Nag sugad ang kataya sa basura nga gisunag",
-    location: "Laguna, Bray. Basak, Cebu City",
-    date: "Dec 4, 10:26 AM",
-    status: "In Progress",
-    statusColor: "bg-yellow-100 text-yellow-800"
-  },
-  {
-    id: 2,
-    category: "Flood",
-    description: "Nay baha dri taas kaaya ang tubig",
-    location: "Pardo, Bray. Basak, Cebu City",
-    date: "Dec 4, 10:26 AM",
-    status: "Completed",
-    statusColor: "bg-green-100 text-green-800"
-  },
-  {
-    id: 3,
-    category: "Flood",
-    description: "Nay daghang basura diri baho na kaaya",
-    location: "Pardo, Bray. Basak, Cebu City",
-    date: "Dec 4, 10:26 AM",
-    status: "Pending",
-    statusColor: "bg-red-100 text-red-800"
-  }
-];
 
 interface ReportsTableProps {
   selectedStatus: "All Status" | Report["status"];
@@ -50,7 +22,50 @@ interface ReportsTableProps {
 }
 
 export default function ReportsTable({ selectedStatus, selectedCategory, searchQuery }: ReportsTableProps) {
-  const filteredReports = reportsData.filter((report) => {
+  const [reports, setReports] = useState<Report[]>([]);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+
+  const loadReports = async () => {
+    setIsLoading(true);
+    setError("");
+    try {
+      const res = await apiFetch("/auth/officials/reports/all/", { method: "GET" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to load reports");
+
+      const normalized: Report[] = (data.reports || []).map((r: any) => {
+        const isFire = (r.category || "").toLowerCase() === "fire";
+        const statusColor =
+          r.status === "Pending"
+            ? "bg-red-100 text-red-800"
+            : r.status === "In Progress"
+            ? "bg-yellow-100 text-yellow-800"
+            : "bg-green-100 text-green-800";
+        return {
+          id: r.id,
+          category: isFire ? "Fire" : "Flood",
+          description: r.description || "",
+          location: r.location || "",
+          date: r.date ? new Date(r.date).toLocaleString() : "",
+          status: r.status,
+          statusColor,
+        };
+      });
+
+      setReports(normalized);
+    } catch (err: any) {
+      setError(err.message || "Failed to load reports");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReports();
+  }, []);
+
+  const filteredReports = useMemo(() => reports.filter((report) => {
     const statusMatch =
       selectedStatus === "All Status" || report.status === selectedStatus;
 
@@ -64,7 +79,7 @@ export default function ReportsTable({ selectedStatus, selectedCategory, searchQ
       report.category.toLowerCase().includes(searchQuery.toLowerCase());
 
     return statusMatch && categoryMatch && searchMatch;
-  });
+  }), [reports, selectedStatus, selectedCategory, searchQuery]);
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -83,7 +98,21 @@ export default function ReportsTable({ selectedStatus, selectedCategory, searchQ
           </TableHeader>
 
           <TableBody>
-            {filteredReports.length > 0 ? (
+            {error && (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-4 text-red-600">
+                  {error}
+                </TableCell>
+              </TableRow>
+            )}
+            {isLoading && (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-4 text-gray-500">
+                  Loading reports...
+                </TableCell>
+              </TableRow>
+            )}
+            {!isLoading && !error && filteredReports.length > 0 ? (
               filteredReports.map((report) => (
                 <ReportRow key={report.id} report={report} />
               ))

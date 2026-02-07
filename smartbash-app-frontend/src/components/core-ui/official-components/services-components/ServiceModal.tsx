@@ -10,7 +10,7 @@ export interface ServiceFormData {
   serviceName: string;
   contact: string;
   email: string;
-  location: string;
+  address: string;
   status: ServiceStatus;
 }
 
@@ -34,7 +34,7 @@ export default function ServiceModal({
     serviceName: "",
     contact: "",
     email: "",
-    location: "",
+    address: "",
     status: "Active",
   });
 
@@ -46,7 +46,7 @@ export default function ServiceModal({
         serviceName: initialData.serviceName || "",
         contact: initialData.contact || "",
         email: initialData.email || "",
-        location: initialData.location || "",
+        address: initialData.address || "",
         status: initialData.status || "Active",
       });
     }
@@ -130,10 +130,10 @@ export default function ServiceModal({
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-900 mb-2">Location:</label>
+            <label className="block text-sm font-medium text-gray-900 mb-2">Address (Optional):</label>
             <input
-              name="location"
-              value={form.location}
+              name="address"
+              value={form.address}
               onChange={handleChange}
               className="w-full h-11 px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
             />

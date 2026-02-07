@@ -29,7 +29,8 @@ export default function page() {
   };
 
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    submit(e);
+    e.preventDefault();
+    submit();
   };
 
   return (
