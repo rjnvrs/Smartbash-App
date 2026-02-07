@@ -152,6 +152,7 @@ export default function NewsFeedList() {
                 className="mt-6 bg-green-500 text-white py-3 rounded-full w-full"
                 onClick={() => {
                   setPostType("EVENT");
+                  setIncidentType("Fire");
                   setShowChooser(false);
                   setOpenComposer(true);
                 }}
@@ -171,6 +172,7 @@ export default function NewsFeedList() {
                 className="mt-6 bg-blue-600 text-white py-3 rounded-full w-full"
                 onClick={() => {
                   setPostType("HELP");
+                  setIncidentType("Fire"); // ✅ FIX
                   setShowChooser(false);
                   setOpenComposer(true);
                 }}
@@ -271,14 +273,14 @@ export default function NewsFeedList() {
               <div>
                 <p className="font-semibold text-sm">{post.author}</p>
                 <div className="flex gap-2 text-xs text-gray-500">
-                  <span className={`px-2 rounded-full ${
-                    post.postType === "HELP"
-                      ? "bg-blue-100 text-blue-600"
-                      : post.incidentType === "Fire"
-                      ? "bg-red-100 text-red-600"
-                      : "bg-blue-100 text-blue-600"
-                  }`}>
-                    {post.postType === "HELP" ? "Help" : post.incidentType}
+                  <span
+                    className={`px-2 rounded-full ${
+                      post.incidentType === "Fire"
+                        ? "bg-red-100 text-red-600"
+                        : "bg-blue-100 text-blue-600"
+                    }`}
+                  >
+                    {post.incidentType} {/* ✅ ALWAYS SHOW FIRE/FLOOD */}
                   </span>
                   <span>· {post.time}</span>
                 </div>
@@ -299,13 +301,22 @@ export default function NewsFeedList() {
               />
               {activeMenu === post.id && (
                 <div className="absolute right-0 mt-2 w-44 bg-white border rounded-lg shadow-lg">
-                  <button onClick={() => toggleInterested(post.id)} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">
+                  <button
+                    onClick={() => toggleInterested(post.id)}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+                  >
                     {post.interested ? "★ Interested" : "☆ Mark Interested"}
                   </button>
-                  <button onClick={() => toggleSaved(post.id)} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">
+                  <button
+                    onClick={() => toggleSaved(post.id)}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+                  >
                     {post.saved ? "✓ Saved" : "Save Post"}
                   </button>
-                  <button onClick={() => deletePost(post.id)} className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100">
+                  <button
+                    onClick={() => deletePost(post.id)}
+                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100"
+                  >
                     Delete Post
                   </button>
                 </div>
@@ -320,8 +331,12 @@ export default function NewsFeedList() {
           )}
 
           <div className="flex justify-between px-6 py-3 border-t text-sm text-gray-600">
-            <button className="flex items-center gap-2"><FaRegComment /> Comment</button>
-            <button className="flex items-center gap-2"><FaShare /> Share</button>
+            <button className="flex items-center gap-2">
+              <FaRegComment /> Comment
+            </button>
+            <button className="flex items-center gap-2">
+              <FaShare /> Share
+            </button>
           </div>
         </div>
       ))}
