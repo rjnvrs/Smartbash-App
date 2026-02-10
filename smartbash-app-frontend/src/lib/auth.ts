@@ -19,9 +19,11 @@ export function clearAuthTokens() {
   }
 }
 
+import { API_BASE } from "@/lib/api";
+
 export async function logout() {
   try {
-    await fetch("http://127.0.0.1:8000/api/auth/logout/", {
+    await fetch(`${API_BASE}/auth/logout/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",

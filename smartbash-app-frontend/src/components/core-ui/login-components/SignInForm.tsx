@@ -4,8 +4,9 @@ import Link from "next/link";
 import Image from "next/image";
 import SocialLoginButton from "./SocialLoginButton";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import { useSearchParams } from "next/navigation";
 
 import {
   Form,
@@ -30,6 +31,11 @@ type UserRole = "Resident" | "Services" | "BrgyOfficials" | "Admin";
 export default function SignInForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const searchParams = useSearchParams();
+  const noticeMessage = useMemo(() => {
+    if (!searchParams) return "";
+    return searchParams.get("message") || "";
+  }, [searchParams]);
 
   const form = useForm<SignInFormValues>({
     defaultValues: {
@@ -113,6 +119,13 @@ export default function SignInForm() {
             Sign in to your SMARTBASH account
           </p>
         </div>
+
+        {/* NOTICE */}
+        {noticeMessage && (
+          <div className="p-3 bg-blue-50 border border-blue-200 text-blue-700 rounded text-sm sm:text-base">
+            {noticeMessage}
+          </div>
+        )}
 
         {/* API ERROR */}
         {error && (

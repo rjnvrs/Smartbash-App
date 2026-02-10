@@ -149,7 +149,11 @@ export function useSignUpForm() {
       if (typeof window !== "undefined") {
         localStorage.removeItem("smartbash_register_form");
       }
-      window.location.href = "/login";
+      const notice =
+        role === "Resident"
+          ? "Registration submitted. Please wait for officials approval."
+          : "Registration submitted. Please wait for admin approval.";
+      window.location.href = `/login?message=${encodeURIComponent(notice)}`;
     }, 2000);
   } catch (err: any) {
     setErrorMessage(err.message || "Registration failed");
