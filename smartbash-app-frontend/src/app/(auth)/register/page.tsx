@@ -70,6 +70,7 @@ export default function page() {
                 formData={formData}
                 updateField={updateField}
                 onFileChange={setFiles}
+                isLoading={isLoading}
               />
             )}
 
