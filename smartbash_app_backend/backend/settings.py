@@ -25,7 +25,12 @@ SECRET_KEY = 'django-insecure-6sh=vloe9!_e)(euh3%fyk%1u#6xva%!*6%=f43z*)%e*=c_!h
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['192.168.100.5'] 
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '192.168.100.5',
+    '192.168.100.10',
+]
 
 
 # Application definition
@@ -68,10 +73,11 @@ MIDDLEWARE = [
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_ORIGINS = [
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://192.168.100.10:3000",
-    
+    "http://192.168.100.5:3000",
 ]
 
 ROOT_URLCONF = 'backend.urls'
@@ -144,3 +150,6 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
