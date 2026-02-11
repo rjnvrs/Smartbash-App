@@ -42,3 +42,25 @@ class AdminNotification(models.Model):
         managed = True
         db_table = "admin_notifications"
         unique_together = ("admin", "subject_type", "subject_id")
+
+
+class ServiceDispatchNotification(models.Model):
+    dispatch_id = models.AutoField(primary_key=True)
+    service = models.ForeignKey(
+        "services.Service",
+        on_delete=models.CASCADE,
+        related_name="dispatch_notifications",
+        db_column="svc_id",
+    )
+    report_id = models.IntegerField()
+    incident_type = models.CharField(max_length=20)
+    barangay = models.CharField(max_length=255, blank=True, null=True)
+    location_text = models.CharField(max_length=500, blank=True, null=True)
+    status = models.CharField(max_length=20, default="Dispatched")
+    sms_sent = models.BooleanField(default=False)
+    sms_error = models.CharField(max_length=500, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = True
+        db_table = "service_dispatch_notifications"

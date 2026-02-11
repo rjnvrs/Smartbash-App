@@ -7,10 +7,17 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from residents.models import Resident, Admin, Role
 from django.db.utils import ProgrammingError
 from django.db import transaction
+from django.db.models import Count
+from django.db.models import Q
 from django.core.files.storage import default_storage
 from django.utils import timezone
-from .models import AdminNotification, ProofOfAuthority
+from .models import AdminNotification, ProofOfAuthority, ServiceDispatchNotification
+from reports.models import IncidentReport, NewsFeedPost
 import os
+import json
+import urllib.request
+import urllib.error
+import re
 
 
 @api_view(['POST'])
@@ -239,6 +246,287 @@ def _get_service_for_request(request):
         return Service.objects.get(svc_email_address=email)
     except Exception:
         return None
+
+
+def _service_notification_payload(item: ServiceDispatchNotification) -> dict:
+    return {
+        "id": item.dispatch_id,
+        "reportId": item.report_id,
+        "incidentType": item.incident_type,
+        "barangay": item.barangay or "",
+        "location": item.location_text or "",
+        "status": item.status,
+        "smsSent": item.sms_sent,
+        "smsError": item.sms_error or "",
+        "createdAt": item.created_at.isoformat() if item.created_at else "",
+    }
+
+
+def _get_resident_for_request(request):
+    if not request.user or not request.user.is_authenticated:
+        return None
+    email = request.user.email or request.user.username
+    if not email:
+        return None
+    try:
+        return Resident.objects.get(res_email_address=email)
+    except Exception:
+        return None
+
+
+def _parse_lat_lng(value: str | None):
+    if not value:
+        return None, None
+    try:
+        cleaned = value.replace("Lat:", "").replace("Lng:", "")
+        parts = [p.strip() for p in cleaned.split(",")]
+        if len(parts) >= 2:
+            return float(parts[0]), float(parts[1])
+    except Exception:
+        return None, None
+    return None, None
+
+
+def _normalize_incident_type(value: str | None) -> str:
+    if (value or "").lower() == "flood":
+        return "Flood"
+    return "Fire"
+
+
+def _resident_full_name(resident: Resident) -> str:
+    return " ".join(
+        part
+        for part in [resident.res_firstname, resident.res_middlename, resident.res_lastname]
+        if part
+    ).strip()
+
+
+def _normalize_barangay(value: str | None) -> str:
+    return " ".join((value or "").lower().split())
+
+
+def _normalize_location_key(value: str | None) -> str:
+    text = (value or "").strip().lower()
+    # Normalize punctuation/spacing so same place text groups together reliably.
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return " ".join(text.split())
+
+
+def _canonical_barangay(value: str | None) -> str:
+    normalized = _normalize_barangay(value)
+    if "pahina" in normalized and "san nicolas" in normalized:
+        return "pahina san nicolas"
+    if "duljo" in normalized and "fatima" in normalized:
+        return "duljo fatima"
+    if "cogon" in normalized and "pardo" in normalized:
+        return "cogon pardo"
+    if "bulacao" in normalized and "pardo" in normalized:
+        return "bulacao pardo"
+    return normalized
+
+
+def _normalize_phone_number(raw_phone: str | None) -> str:
+    phone = re.sub(r"[^0-9+]", "", (raw_phone or "").strip())
+    if not phone:
+        return ""
+    # PH local -> E.164
+    if phone.startswith("09") and len(phone) == 11:
+        return f"+63{phone[1:]}"
+    if phone.startswith("9") and len(phone) == 10:
+        return f"+63{phone}"
+    if phone.startswith("63") and len(phone) == 12:
+        return f"+{phone}"
+    if phone.startswith("+"):
+        return phone
+    return phone
+
+
+def _send_dispatch_sms(service, message_text: str) -> tuple[bool, str | None]:
+    sms_api_url = os.environ.get("SMS_API_URL")
+    sms_api_key = os.environ.get("SMS_API_KEY")
+    phone = _normalize_phone_number(service.svc_contact_number)
+    if not sms_api_url or not sms_api_key:
+        return False, "SMS provider not configured"
+    if not phone:
+        return False, "Service contact number missing"
+    payload = json.dumps({
+        "to": phone,
+        "message": message_text,
+    }).encode("utf-8")
+    request = urllib.request.Request(
+        sms_api_url,
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {sms_api_key}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            if 200 <= response.status < 300:
+                return True, None
+            return False, f"SMS HTTP {response.status}"
+    except urllib.error.URLError as exc:
+        return False, str(exc)
+
+
+def _matching_report_count(report: IncidentReport) -> int:
+    location_text = (report.location_text or "").strip()
+    if location_text:
+        return IncidentReport.objects.filter(
+            incident_type=report.incident_type,
+            location_text__iexact=location_text,
+        ).count()
+    barangay = (report.barangay or "").strip()
+    if barangay:
+        return IncidentReport.objects.filter(
+            incident_type=report.incident_type,
+            barangay__iexact=barangay,
+        ).count()
+    return 1
+
+
+def _notify_services_for_report(report: IncidentReport, report_count: int | None = None) -> dict:
+    from services.models import Service
+
+    incident_type = (report.incident_type or "").strip()
+    services = Service.objects.filter(svc_is_active=True, svc_is_deleted=False)
+    typed_services = services
+    if incident_type == "Fire":
+        typed_services = services.filter(
+            Q(svc_description__iexact="Fire")
+            | Q(svc_description__icontains="fire")
+            | Q(svc_description__icontains="bfp")
+        )
+    else:
+        typed_services = services.filter(
+            Q(svc_description__iexact="Rescue")
+            | Q(svc_description__icontains="rescue")
+            | Q(svc_description__icontains="flood")
+            | Q(svc_description__icontains="ambulance")
+            | Q(svc_description__icontains="evac")
+        )
+    if typed_services.exists():
+        services = typed_services
+
+    barangay = (report.barangay or "").strip()
+    if barangay:
+        localized = services.filter(svc_location__icontains=barangay)
+        if localized.exists():
+            services = localized
+
+    reports_in_cluster = report_count or _matching_report_count(report)
+    services_login_url = os.environ.get("SERVICES_PORTAL_LOGIN_URL", "").strip()
+
+    message = (
+        f"Smartbash Dispatch Alert\n"
+        f"Incident: {incident_type} ({reports_in_cluster} reports)\n"
+        f"Barangay: {barangay or 'N/A'}\n"
+        f"Location: {(report.location_text or '')[:120]}"
+    )
+    if services_login_url:
+        message += f"\nLogin: {services_login_url}"
+
+    matched_services = services.count()
+    notifications_created = 0
+    sms_sent_count = 0
+    sms_failed_count = 0
+    errors: list[str] = []
+    for service in services:
+        sms_sent, sms_error = _send_dispatch_sms(service, message)
+        ServiceDispatchNotification.objects.create(
+            service=service,
+            report_id=report.report_id,
+            incident_type=incident_type,
+            barangay=barangay,
+            location_text=report.location_text or "",
+            status="Dispatched",
+            sms_sent=sms_sent,
+            sms_error=sms_error,
+        )
+        notifications_created += 1
+        if sms_sent:
+            sms_sent_count += 1
+        else:
+            sms_failed_count += 1
+            if sms_error:
+                errors.append(f"{service.svc_name}: {sms_error}")
+
+    return {
+        "servicesMatched": matched_services,
+        "notificationsCreated": notifications_created,
+        "smsSent": sms_sent_count,
+        "smsFailed": sms_failed_count,
+        "errors": errors[:10],
+    }
+
+
+def _incident_row_to_dict(row: IncidentReport) -> dict:
+    return {
+        "id": row.report_id,
+        "category": row.incident_type,
+        "description": row.description or "",
+        "location": row.location_text or row.barangay or "",
+        "date": row.created_at.isoformat() if row.created_at else "",
+        "status": row.status,
+        "images": row.images or [],
+        "residentName": row.resident_name or "",
+        "residentEmail": row.resident_email or "",
+    }
+
+
+def _incident_urgency_from_count(report_count: int) -> str:
+    if report_count <= 1:
+        return "Low"
+    if report_count <= 4:
+        return "Moderate"
+    if report_count <= 6:
+        return "High"
+    return "Critical"
+
+
+def _official_incident_queryset(official):
+    qs = IncidentReport.objects.all().order_by("-created_at")
+    official_barangay_raw = (official.official_barangay or "").strip()
+    official_barangay = _normalize_barangay(official_barangay_raw)
+    official_core = official_barangay.replace("barangay ", "", 1).strip() if official_barangay else ""
+
+    matching_terms = []
+    if official_barangay_raw:
+        matching_terms.append(official_barangay_raw)
+    if official_core:
+        matching_terms.append(official_core)
+        matching_terms.append(f"Barangay {official_core}")
+
+    resident_qs = Resident.objects.filter(res_is_deleted=False)
+    resident_emails = set(
+        resident_qs.filter(
+            officials_id=official.official_id,
+        ).values_list("res_email_address", flat=True)
+    )
+    if matching_terms:
+        resident_emails.update(
+            resident_qs.filter(
+                Q(res_location__icontains=matching_terms[0])
+                | Q(res_location__icontains=matching_terms[1] if len(matching_terms) > 1 else matching_terms[0])
+                | Q(res_location__icontains=matching_terms[2] if len(matching_terms) > 2 else matching_terms[0])
+            ).values_list("res_email_address", flat=True)
+        )
+
+    if not matching_terms and not resident_emails:
+        return qs
+
+    query = Q()
+    if resident_emails:
+        query |= Q(resident_email__in=list(resident_emails))
+    for term in matching_terms:
+        query |= Q(barangay__icontains=term)
+        query |= Q(location_text__icontains=term)
+
+    return qs.filter(
+        query
+    )
 
 
 @api_view(['GET'])
@@ -494,12 +782,15 @@ def officials_residents_approve(request):
         res = Resident.objects.get(res_id=res_id)
     except Resident.DoesNotExist:
         return Response({"message": "Resident not found"}, status=404)
+    if (official.official_barangay or "").strip() and (res.res_location or "").lower().find((official.official_barangay or "").strip().lower()) == -1:
+        return Response({"message": "Forbidden for this barangay"}, status=403)
 
     res.res_is_active = True
     res.res_is_deleted = False
+    res.officials_id = official.official_id
     res.res_updated_on = timezone.now()
     res.res_updated_by = official.official_email_address
-    res.save(update_fields=["res_is_active", "res_is_deleted", "res_updated_on", "res_updated_by"])
+    res.save(update_fields=["res_is_active", "res_is_deleted", "officials_id", "res_updated_on", "res_updated_by"])
 
     return Response({"message": "Approved"}, status=200)
 
@@ -517,6 +808,8 @@ def officials_residents_remove(request):
         res = Resident.objects.get(res_id=res_id)
     except Resident.DoesNotExist:
         return Response({"message": "Resident not found"}, status=404)
+    if (official.official_barangay or "").strip() and (res.res_location or "").lower().find((official.official_barangay or "").strip().lower()) == -1:
+        return Response({"message": "Forbidden for this barangay"}, status=403)
 
     res.res_is_active = False
     res.res_is_deleted = True
@@ -698,19 +991,205 @@ def officials_services_delete(request):
     return Response({"message": "Deleted"}, status=200)
 
 
+@api_view(['POST'])
+def residents_incidents_create(request):
+    resident = _get_resident_for_request(request)
+    if not resident or not resident.res_is_active or resident.res_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    incident_type = _normalize_incident_type(request.data.get("type"))
+    description = request.data.get("description") or ""
+    location_text = request.data.get("location") or ""
+    images = request.data.get("images") or []
+    if not isinstance(images, list):
+        images = []
+    lat = request.data.get("lat")
+    lng = request.data.get("lng")
+    try:
+        lat = float(lat) if lat is not None else None
+        lng = float(lng) if lng is not None else None
+    except (TypeError, ValueError):
+        lat, lng = None, None
+    if lat is None or lng is None:
+        lat, lng = _parse_lat_lng(location_text)
+    barangay_value = (resident.res_location or "").strip() or location_text
+
+    report = IncidentReport.objects.create(
+        resident_email=resident.res_email_address,
+        resident_name=_resident_full_name(resident) or resident.res_email_address,
+        barangay=barangay_value,
+        incident_type=incident_type,
+        description=description,
+        location_text=location_text,
+        lat=lat,
+        lng=lng,
+        images=images,
+        status="Pending",
+    )
+
+    return Response(
+        {
+            "message": "Report submitted",
+            "report": {
+                "id": report.report_id,
+                "status": report.status,
+                "created_at": report.created_at.isoformat(),
+            },
+        },
+        status=201,
+    )
+
+
+@api_view(['GET'])
+def residents_incidents_my(request):
+    resident = _get_resident_for_request(request)
+    if not resident:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    rows = IncidentReport.objects.filter(
+        resident_email=resident.res_email_address
+    ).order_by("-created_at")
+
+    reports = [
+        {
+            "id": r.report_id,
+            "type": r.incident_type.lower(),
+            "status": "completed" if r.status == "Completed" else "inprogress" if r.status == "In Progress" else "waiting",
+            "description": r.description or "",
+            "location": r.location_text or "",
+            "images": r.images or [],
+            "createdAt": int(r.created_at.timestamp() * 1000) if r.created_at else 0,
+        }
+        for r in rows
+    ]
+    return Response({"reports": reports}, status=200)
+
+
+@api_view(['POST'])
+def residents_newsfeed_create(request):
+    resident = _get_resident_for_request(request)
+    if not resident:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    post_type = request.data.get("postType") or "EVENT"
+    incident_type = _normalize_incident_type(request.data.get("incidentType"))
+    content = request.data.get("content") or ""
+    location_text = request.data.get("location") or ""
+    image = request.data.get("image")
+
+    post = NewsFeedPost.objects.create(
+        author_email=resident.res_email_address,
+        author_name=_resident_full_name(resident) or resident.res_email_address,
+        barangay=resident.res_location or "",
+        post_type=post_type if post_type in ("EVENT", "HELP") else "EVENT",
+        incident_type=incident_type,
+        location_text=location_text,
+        content=content,
+        image=image,
+    )
+    return Response({"message": "Post created", "id": post.post_id}, status=201)
+
+
+@api_view(['GET'])
+def residents_newsfeed_list(request):
+    resident = _get_resident_for_request(request)
+    if not resident:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    email = resident.res_email_address
+    # Facebook-like feed: residents can see posts across barangays in the system.
+    rows = NewsFeedPost.objects.filter(is_deleted=False).order_by("-created_at")[:100]
+    posts = [
+        {
+            "id": p.post_id,
+            "author": p.author_name or p.author_email,
+            "time": p.created_at.isoformat() if p.created_at else "",
+            "postType": p.post_type,
+            "incidentType": p.incident_type,
+            "location": p.location_text or "",
+            "content": p.content or "",
+            "image": p.image,
+            "interested": email in (p.interested_by or []),
+            "saved": email in (p.saved_by or []),
+        }
+        for p in rows
+    ]
+    return Response({"posts": posts}, status=200)
+
+
+@api_view(['POST'])
+def residents_newsfeed_interest(request):
+    resident = _get_resident_for_request(request)
+    if not resident:
+        return Response({"message": "Unauthorized"}, status=401)
+    post_id = request.data.get("id")
+    try:
+        post = NewsFeedPost.objects.get(post_id=post_id, is_deleted=False)
+    except NewsFeedPost.DoesNotExist:
+        return Response({"message": "Post not found"}, status=404)
+    email = resident.res_email_address
+    users = post.interested_by or []
+    if email in users:
+        users.remove(email)
+    else:
+        users.append(email)
+    post.interested_by = users
+    post.save(update_fields=["interested_by", "updated_at"])
+    return Response({"message": "OK", "interested": email in users}, status=200)
+
+
+@api_view(['POST'])
+def residents_newsfeed_save(request):
+    resident = _get_resident_for_request(request)
+    if not resident:
+        return Response({"message": "Unauthorized"}, status=401)
+    post_id = request.data.get("id")
+    try:
+        post = NewsFeedPost.objects.get(post_id=post_id, is_deleted=False)
+    except NewsFeedPost.DoesNotExist:
+        return Response({"message": "Post not found"}, status=404)
+    email = resident.res_email_address
+    users = post.saved_by or []
+    if email in users:
+        users.remove(email)
+    else:
+        users.append(email)
+    post.saved_by = users
+    post.save(update_fields=["saved_by", "updated_at"])
+    return Response({"message": "OK", "saved": email in users}, status=200)
+
+
+@api_view(['POST'])
+def residents_newsfeed_delete(request):
+    resident = _get_resident_for_request(request)
+    if not resident:
+        return Response({"message": "Unauthorized"}, status=401)
+    post_id = request.data.get("id")
+    try:
+        post = NewsFeedPost.objects.get(post_id=post_id, is_deleted=False)
+    except NewsFeedPost.DoesNotExist:
+        return Response({"message": "Post not found"}, status=404)
+    if post.author_email != resident.res_email_address:
+        return Response({"message": "Forbidden"}, status=403)
+    post.is_deleted = True
+    post.save(update_fields=["is_deleted", "updated_at"])
+    return Response({"message": "Deleted"}, status=200)
+
+
 @api_view(['GET'])
 def officials_dashboard(request):
     official = _get_official_for_request(request)
     if not official or not official.official_is_active or official.official_is_deleted:
         return Response({"message": "Unauthorized"}, status=401)
 
+    rows = _official_incident_queryset(official)
     summary = {
-        "totalReports": 0,
-        "fireReports": 0,
-        "floodReports": 0,
-        "pendingReports": 0,
-        "inProgressReports": 0,
-        "resolvedReports": 0,
+        "totalReports": rows.count(),
+        "fireReports": rows.filter(incident_type="Fire").count(),
+        "floodReports": rows.filter(incident_type="Flood").count(),
+        "pendingReports": rows.filter(status="Pending").count(),
+        "inProgressReports": rows.filter(status="In Progress").count(),
+        "resolvedReports": rows.filter(status="Completed").count(),
     }
     return Response(summary, status=200)
 
@@ -721,7 +1200,9 @@ def officials_reports_recent(request):
     if not official or not official.official_is_active or official.official_is_deleted:
         return Response({"message": "Unauthorized"}, status=401)
 
-    return Response({"reports": []}, status=200)
+    rows = _official_incident_queryset(official)[:12]
+    reports = [_incident_row_to_dict(row) for row in rows]
+    return Response({"reports": reports}, status=200)
 
 
 @api_view(['GET'])
@@ -730,7 +1211,9 @@ def officials_reports_all(request):
     if not official or not official.official_is_active or official.official_is_deleted:
         return Response({"message": "Unauthorized"}, status=401)
 
-    return Response({"reports": []}, status=200)
+    rows = _official_incident_queryset(official)
+    reports = [_incident_row_to_dict(row) for row in rows]
+    return Response({"reports": reports}, status=200)
 
 
 @api_view(['GET'])
@@ -739,7 +1222,120 @@ def officials_incidents_map(request):
     if not official or not official.official_is_active or official.official_is_deleted:
         return Response({"message": "Unauthorized"}, status=401)
 
-    return Response({"incidents": []}, status=200)
+    rows = _official_incident_queryset(official)
+
+    grouped: dict[tuple[str, str], dict] = {}
+    for row in rows:
+        location_value = (row.location_text or row.barangay or "").strip()
+        normalized_location = _normalize_location_key(location_value)
+        if not normalized_location:
+            if row.lat is not None and row.lng is not None:
+                normalized_location = f"{round(float(row.lat), 4)}:{round(float(row.lng), 4)}"
+            else:
+                normalized_location = f"report-{row.report_id}"
+        key = ((row.incident_type or "Fire"), normalized_location)
+
+        entry = grouped.get(key)
+        if not entry:
+            grouped[key] = {
+                "id": row.report_id,
+                "type": row.incident_type.lower(),
+                "reports": 1,
+                "lat": float(row.lat) if row.lat is not None else None,
+                "lon": float(row.lng) if row.lng is not None else None,
+                "location": location_value,
+                "reportIds": [row.report_id],
+            }
+        else:
+            entry["reports"] += 1
+            entry["reportIds"].append(row.report_id)
+            if entry["lat"] is None and row.lat is not None:
+                entry["lat"] = float(row.lat)
+            if entry["lon"] is None and row.lng is not None:
+                entry["lon"] = float(row.lng)
+
+    incidents = []
+    for entry in grouped.values():
+        entry["urgency"] = _incident_urgency_from_count(entry["reports"])
+        incidents.append(entry)
+
+    return Response({"incidents": incidents}, status=200)
+
+
+@api_view(['POST'])
+def officials_reports_dispatch(request):
+    official = _get_official_for_request(request)
+    if not official or not official.official_is_active or official.official_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    report_id = request.data.get("id")
+    if not report_id:
+        return Response({"message": "Missing id"}, status=400)
+
+    qs = _official_incident_queryset(official)
+    report = qs.filter(report_id=report_id).first()
+    if not report:
+        return Response({"message": "Report not found"}, status=404)
+
+    report_count = _matching_report_count(report)
+    report.status = "In Progress"
+    report.save(update_fields=["status", "updated_at"])
+    notify_summary = _notify_services_for_report(report, report_count=report_count)
+    return Response(
+        {
+            "message": "Dispatched",
+            "id": report.report_id,
+            "status": report.status,
+            "reportCountAtLocation": report_count,
+            **notify_summary,
+        },
+        status=200,
+    )
+
+
+@api_view(['POST'])
+def officials_reports_dispatch_all(request):
+    official = _get_official_for_request(request)
+    if not official or not official.official_is_active or official.official_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    qs = _official_incident_queryset(official).filter(status="Pending")
+    updated = 0
+    total_matched = 0
+    total_created = 0
+    total_sms_sent = 0
+    total_sms_failed = 0
+    for report in qs:
+        report_count = _matching_report_count(report)
+        report.status = "In Progress"
+        report.save(update_fields=["status", "updated_at"])
+        notify_summary = _notify_services_for_report(report, report_count=report_count)
+        total_matched += notify_summary["servicesMatched"]
+        total_created += notify_summary["notificationsCreated"]
+        total_sms_sent += notify_summary["smsSent"]
+        total_sms_failed += notify_summary["smsFailed"]
+        updated += 1
+    return Response(
+        {
+            "message": "Dispatch complete",
+            "updated": updated,
+            "servicesMatched": total_matched,
+            "notificationsCreated": total_created,
+            "smsSent": total_sms_sent,
+            "smsFailed": total_sms_failed,
+        },
+        status=200,
+    )
+
+
+@api_view(['GET'])
+def services_dispatch_notifications(request):
+    service_user = _get_service_for_request(request)
+    if not service_user or service_user.svc_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    rows = ServiceDispatchNotification.objects.filter(service=service_user).order_by("-created_at")[:100]
+    return Response({"dispatches": [_service_notification_payload(item) for item in rows]}, status=200)
 
 
 @api_view(['POST'])
