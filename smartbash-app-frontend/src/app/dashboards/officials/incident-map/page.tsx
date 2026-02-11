@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
+import { ChevronLeft } from "lucide-react";
+
+// Sidebar and components
 import Sidebar from "../../../../components/core-ui/official-components/Sidebar";
 import { MapHeader } from "../../../../components/core-ui/official-components/incident-map-components/MapHeader";
 import { FilterTabs } from "../../../../components/core-ui/official-components/incident-map-components/FilterTabs";
 import { UrgencyLegend } from "../../../../components/core-ui/official-components/incident-map-components/UrgencyLegend";
-import { MapView } from "../../../../components/core-ui/official-components/incident-map-components/MapView";
 import { ClusterDetails } from "../../../../components/core-ui/official-components/incident-map-components/ClusterDetails";
 import { MapSearchBar } from "../../../../components/core-ui/official-components/incident-map-components/MapSearchbar";
-import { apiFetch, parseJsonSafe } from "@/lib/api";
 
-/* TYPES */
+// Types
 export type IncidentType = "fire" | "flood";
 export type UrgencyType = "Low" | "Moderate" | "High" | "Critical";
 
@@ -18,11 +20,72 @@ export interface Incident {
   id: number;
   type: IncidentType;
   urgency: UrgencyType;
+  reports: number;
   lat: number;
   lon: number;
-  reports: number;
   location: string;
 }
+
+interface StoredReport {
+  id: number;
+  type: "fire" | "flood";
+  status: "completed" | "waiting" | "inprogress";
+  description: string;
+  location: string;
+  images?: string[];
+  createdAt: number;
+}
+
+// Geocoding cache
+const geocodeCache: Record<string, { lat: number; lon: number }> = {};
+
+const extractCoordinates = (location: string) => {
+  const latMatch = location.match(/Lat:\s*([-\d.]+)/i);
+  const lngMatch = location.match(/Lng:\s*([-\d.]+)/i);
+  if (latMatch && lngMatch) return { lat: parseFloat(latMatch[1]), lon: parseFloat(lngMatch[1]) };
+  return null;
+};
+
+const geocodeLocation = async (location: string) => {
+  if (geocodeCache[location]) return geocodeCache[location];
+
+  const extracted = extractCoordinates(location);
+  if (extracted) return extracted;
+
+  const res = await fetch(
+    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}`
+  );
+  const data = await res.json();
+
+  const coords =
+    data.length > 0
+      ? { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) }
+      : { lat: 10.3157, lon: 123.8854 };
+
+  geocodeCache[location] = coords;
+  return coords;
+};
+
+// Loading skeleton
+function MapLoadingSkeleton() {
+  return (
+    <div className="relative h-full bg-gradient-to-r from-gray-200 via-gray-100 to-gray-200 rounded-lg overflow-hidden">
+      <div className="absolute inset-0 animate-pulse" />
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-full border-4 border-gray-300 border-t-blue-500 animate-spin" />
+          <p className="text-gray-600 font-medium">Loading map...</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Dynamically import MapView (fixes `window is not defined` issue)
+const MapView = dynamic(
+  () => import("../../../../components/core-ui/official-components/incident-map-components/MapView").then((mod) => mod.MapView),
+  { ssr: false }
+);
 
 export default function IncidentMap() {
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
@@ -30,128 +93,147 @@ export default function IncidentMap() {
   const [selectedType, setSelectedType] = useState<IncidentType | "All">("All");
   const [selectedUrgency, setSelectedUrgency] = useState<UrgencyType | "All">("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [clusterCollapsed, setClusterCollapsed] = useState(false);
+  const [allIncidents, setAllIncidents] = useState<Incident[]>([]);
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isMapLoading, setIsMapLoading] = useState(true);
 
-  const loadIncidents = async () => {
-    setIsLoading(true);
-    setError("");
-    try {
-      const res = await apiFetch("/auth/officials/incidents/map/", { method: "GET" });
-      const { data, text } = await parseJsonSafe(res);
-      if (!res.ok) {
-        if (!data) throw new Error(text || "Failed to load incidents");
-        throw new Error(data.message || "Failed to load incidents");
-      }
-      setIncidents((data?.incidents || []) as Incident[]);
-    } catch (err: any) {
-      setError(err.message || "Failed to load incidents");
-    } finally {
-      setIsLoading(false);
-    }
+  // Detect mobile
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
+  // Simulate map loading
+  useEffect(() => {
+    const timer = setTimeout(() => setIsMapLoading(false), 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const getUrgencyByReportCount = (count: number): UrgencyType => {
+    if (count === 1) return "Low";
+    if (count <= 4) return "Moderate";
+    if (count <= 6) return "High";
+    return "Critical";
   };
 
+  const convertReportsToIncidents = async (reports: StoredReport[]) => {
+    const grouped: Record<string, StoredReport[]> = {};
+    reports.forEach((r) => {
+      const key = `${r.location}-${r.type}`;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(r);
+    });
+
+    const results: Incident[] = [];
+    for (const group of Object.values(grouped)) {
+      const first = group[0];
+      const coords = await geocodeLocation(first.location);
+      results.push({
+        id: results.length + 1,
+        type: first.type,
+        urgency: getUrgencyByReportCount(group.length),
+        reports: group.length,
+        lat: coords.lat,
+        lon: coords.lon,
+        location: first.location,
+      });
+    }
+    return results;
+  };
+
+  // Load incidents
   useEffect(() => {
+    const loadIncidents = async () => {
+      const storedReports: StoredReport[] = JSON.parse(localStorage.getItem("incident_reports") || "[]");
+      if (storedReports.length === 0) {
+        setAllIncidents([{ id: 1, type: "fire", urgency: "High", lat: 10.3, lon: 123.9, reports: 9, location: "Basak Pardo, Cebu City" }]);
+      } else {
+        const converted = await convertReportsToIncidents(storedReports);
+        setAllIncidents(converted);
+      }
+    };
     loadIncidents();
   }, []);
 
   const filteredIncidents = useMemo(() => {
-    return incidents.filter((i) => {
+    return allIncidents.filter((i) => {
       const typeMatch = selectedType === "All" || i.type === selectedType;
       const urgencyMatch = selectedUrgency === "All" || i.urgency === selectedUrgency;
-      const searchMatch =
-        !searchQuery ||
-        i.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        i.type.toLowerCase().includes(searchQuery.toLowerCase());
+      const searchMatch = !searchQuery || i.location.toLowerCase().includes(searchQuery.toLowerCase()) || i.type.toLowerCase().includes(searchQuery.toLowerCase());
       return typeMatch && urgencyMatch && searchMatch;
     });
-  }, [selectedType, selectedUrgency, searchQuery, incidents]);
-
-  const clusterIncidents = useMemo(() => {
-    return [...filteredIncidents].sort((a, b) => b.reports - a.reports);
-  }, [filteredIncidents]);
+  }, [allIncidents, selectedType, selectedUrgency, searchQuery]);
 
   const getIncidentColor = (urgency: UrgencyType) => {
-    const colors: Record<UrgencyType, string> = {
-      Low: "bg-green-500",
-      Moderate: "bg-yellow-400",
-      High: "bg-red-500",
-      Critical: "bg-purple-500",
-    };
+    const colors = { Low: "bg-green-500", Moderate: "bg-yellow-400", High: "bg-red-500", Critical: "bg-purple-500" };
     return colors[urgency];
   };
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* SIDEBAR — DESKTOP ONLY */}
-      <div>
+      <div className="hidden sm:block">
         <Sidebar />
       </div>
 
-      {/* MAIN CONTENT */}
-      <div className="flex-1 overflow-y-auto">
-        
-        {/* HEADER */}
-        <div className="bg-white m-3 sm:m-6 rounded-lg shadow-sm p-4 sm:p-6">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <div className="bg-white m-3 sm:m-6 rounded-lg shadow-sm p-4 sm:p-6 flex-shrink-0">
           <MapHeader autoDispatch={autoDispatch} setAutoDispatch={setAutoDispatch} />
           <FilterTabs selectedType={selectedType} onTypeChange={setSelectedType} />
           <UrgencyLegend getIncidentColor={getIncidentColor} />
         </div>
 
-        {/* SEARCH — ALWAYS ABOVE MAP */}
-        <div className="bg-white mx-3 sm:mx-6 rounded-lg shadow-sm p-3">
-          <MapSearchBar
-            selectedUrgency={selectedUrgency}
-            onUrgencyChange={setSelectedUrgency}
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-          />
+        {/* Search */}
+        <div className="bg-white mx-3 sm:mx-6 rounded-lg shadow-sm p-3 flex-shrink-0">
+          <MapSearchBar selectedUrgency={selectedUrgency} onUrgencyChange={setSelectedUrgency} searchQuery={searchQuery} onSearchChange={setSearchQuery} />
         </div>
 
-        {/* MAP + CLUSTER */}
-        <div className="flex flex-col sm:flex-row gap-4 px-3 sm:px-6 mt-4 pb-6">
-          
-          {/* MAP */}
-          <div className="bg-white rounded-lg shadow-sm p-3 flex-1">
-            <div className="relative h-[300px] sm:h-[calc(100vh-320px)]">
-              {error && (
-                <div className="absolute inset-0 flex items-center justify-center text-sm text-red-600">
-                  {error}
-                </div>
+        {/* Map + Cluster Panel */}
+        <div className={`flex-1 flex flex-col sm:flex-row gap-4 px-3 sm:px-6 mt-4 pb-6 min-h-0 ${isMobile ? "" : "overflow-hidden"}`}>
+          {/* Map */}
+          <div className="bg-white rounded-lg shadow-sm p-3 flex-1 relative">
+            <div className="relative h-[300px] sm:h-full">
+              {isMapLoading ? (
+                <MapLoadingSkeleton />
+              ) : (
+                <MapView
+                  incidents={filteredIncidents}
+                  getIncidentColor={getIncidentColor}
+                  selectedIncident={selectedIncident}
+                  setSelectedIncident={setSelectedIncident}
+                />
               )}
-              {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-500">
-                  Loading incidents...
-                </div>
-              )}
-              <MapView
-                incidents={filteredIncidents}
-                getIncidentColor={getIncidentColor}
-                selectedIncident={selectedIncident}
-                setSelectedIncident={setSelectedIncident}
-              />
             </div>
           </div>
 
-          {/* CLUSTER DETAILS */}
-          {clusterCollapsed ? (
-            <button
-              onClick={() => setClusterCollapsed(false)}
-              className="hidden sm:flex h-10 w-10 rounded-xl border bg-white shadow-sm items-center justify-center"
-              aria-label="Open cluster details"
-            >
-              ⇦
-            </button>
-          ) : (
-            <div className="bg-white rounded-lg shadow-sm p-4 w-full sm:w-96">
-              <ClusterDetails
-                clusterIncidents={clusterIncidents}
-                collapsed={clusterCollapsed}
-                onToggle={() => setClusterCollapsed(true)}
-              />
-            </div>
+          {/* Cluster Panel */}
+          {filteredIncidents.length > 0 && (
+            <>
+              {/* Expand button for desktop */}
+              {!isMobile && isPanelCollapsed && (
+                <button onClick={() => setIsPanelCollapsed(false)} className="w-16 bg-white rounded-lg shadow-sm flex items-center justify-center hover:bg-gray-100">
+                  <ChevronLeft className="w-5 h-5 text-gray-600" />
+                </button>
+              )}
+
+              {/* Scrollable cluster panel */}
+              {!isPanelCollapsed && (
+                <div
+                  className={`bg-white rounded-lg shadow-sm flex-shrink-0 flex flex-col ${
+                    isMobile ? "w-full max-h-[400px] overflow-y-auto" : "w-96 overflow-y-auto"
+                  }`}
+                  style={isMobile ? {} : { maxHeight: "calc(100vh - 160px)" }}
+                >
+                  <ClusterDetails
+                    clusterIncidents={filteredIncidents}
+                    onCollapse={() => !isMobile && setIsPanelCollapsed(true)}
+                  />
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

@@ -1,9 +1,9 @@
-'use client'
+"use client"
 
-import { useEffect } from 'react'
+import { useEffect } from "react"
 
 export interface CameraProps {
-  videoRef: React.RefObject<HTMLVideoElement | null> 
+  videoRef: React.RefObject<HTMLVideoElement | null>
   capturePhoto: () => void
   cancelCapture: () => void
 }
@@ -20,12 +20,13 @@ export default function Camera({
   }, [videoRef])
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center">
+    <div className="fixed inset-0 z-[2000] bg-black flex flex-col items-center justify-center">
       <video
         ref={videoRef}
         className="w-full h-full object-cover"
         autoPlay
         muted
+        playsInline
       />
 
       <button
