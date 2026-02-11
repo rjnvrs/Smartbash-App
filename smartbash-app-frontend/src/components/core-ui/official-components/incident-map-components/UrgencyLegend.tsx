@@ -8,10 +8,10 @@ interface UrgencyLegendProps {
 
 export function UrgencyLegend({ getIncidentColor }: UrgencyLegendProps) {
   const urgencyLevels: { level: UrgencyLevel; range: string }[] = [
-    { level: "Low", range: "1-3 reports" },
-    { level: "Moderate", range: "4-5 reports" },
-    { level: "High", range: "6-8 reports" },
-    { level: "Critical", range: "9-10+ reports" },
+    { level: "Low", range: "1 report" },
+    { level: "Moderate", range: "2-4 reports" },
+    { level: "High", range: "5-6 reports" },
+    { level: "Critical", range: "7+ reports" },
   ];
 
   return (

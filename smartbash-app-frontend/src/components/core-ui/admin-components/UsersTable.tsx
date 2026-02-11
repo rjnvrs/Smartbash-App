@@ -1,7 +1,9 @@
 "use client";
 
+
 import type { User, Status } from "./types";
 import UserRow from "./UserRow";
+
 
 import {
   Table,
@@ -11,10 +13,12 @@ import {
   TableHead,
 } from "../../../components/ui/table";
 
+
 interface UsersTableProps {
   users: User[];
-  onStatusChange: (id: number, status: Status) => void;
+  onStatusChange: (id: number, status: Status, date?: string) => void;
 }
+
 
 export default function UsersTable({ users, onStatusChange }: UsersTableProps) {
   return (
@@ -32,6 +36,7 @@ export default function UsersTable({ users, onStatusChange }: UsersTableProps) {
               <TableHead className="px-4 py-3 font-semibold text-center">Action</TableHead>
             </TableRow>
           </TableHeader>
+
 
           <TableBody>
             {users.map((user) => (

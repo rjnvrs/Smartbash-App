@@ -1,13 +1,36 @@
 "use client";
 
+
+import { useState } from "react";
 import type { User, Status } from "./types";
+
 
 interface UserRowProps {
   user: User;
-  onStatusChange: (id: number, status: Status) => void;
+  onStatusChange: (id: number, status: Status, date?: string) => void;
 }
 
+
 export default function UserRow({ user, onStatusChange }: UserRowProps) {
+  const [actionDate, setActionDate] = useState<string | undefined>(user.actionDate);
+
+
+  const handleUpdateStatus = (newStatus: Status) => {
+    const date = new Date().toLocaleDateString("en-PH", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+    setActionDate(date);
+    onStatusChange(user.id, newStatus, date);
+  };
+
+
+  const actionText = user.status !== "Pending" && actionDate
+    ? `${user.status} is done on ${actionDate}`
+    : "";
+
+
   return (
     <tr className="hover:bg-gray-50 border-b">
       <td className="px-4 py-3.5">{user.fullName}</td>
@@ -24,9 +47,7 @@ export default function UserRow({ user, onStatusChange }: UserRowProps) {
           </a>
         </div>
       </td>
-
       <td className="px-4 py-3.5">{user.role}</td>
-
       <td className="px-4 py-3.5">
         <span
           className={`font-semibold text-sm px-2 py-1 rounded-full ${
@@ -40,33 +61,25 @@ export default function UserRow({ user, onStatusChange }: UserRowProps) {
           {user.status}
         </span>
       </td>
-
-      <td className="px-4 py-3.5">
-        <div className="flex justify-center gap-2">
-          {user.status === "Pending" ? (
-            <>
-              <button
-                onClick={() => onStatusChange(user.id, "Approved")}
-                className="bg-green-500 text-white px-3 py-1.5 rounded-md text-sm hover:bg-green-600 transition-colors"
-              >
-                Approve
-              </button>
-              <button
-                onClick={() => onStatusChange(user.id, "Removed")}
-                className="bg-red-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-red-700 transition-colors"
-              >
-                Remove
-              </button>
-            </>
-          ) : (
+      <td className="px-4 py-3.5 text-center">
+        {user.status === "Pending" ? (
+          <div className="flex justify-center gap-2">
             <button
-              onClick={() => onStatusChange(user.id, "Pending")}
-              className="bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm hover:bg-black transition-colors"
+              onClick={() => handleUpdateStatus("Approved")}
+              className="bg-green-500 text-white px-3 py-1.5 rounded-md text-sm hover:bg-green-600 transition-colors"
             >
-              Cancel
+              Approve
             </button>
-          )}
-        </div>
+            <button
+              onClick={() => handleUpdateStatus("Removed")}
+              className="bg-red-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-red-700 transition-colors"
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <p className="text-gray-500 text-sm font-medium">{actionText}</p>
+        )}
       </td>
     </tr>
   );

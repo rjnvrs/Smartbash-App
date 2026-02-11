@@ -1,6 +1,6 @@
-// core-ui/admin-components/types.ts
 export type Status = "Pending" | "Approved" | "Removed";
 export type Role = "Brgy. Officials" | "Services";
+
 
 export interface User {
   id: number;
@@ -10,4 +10,5 @@ export interface User {
   details: string;
   status: Status;
   role: Role;
+  actionDate?: string; // added this
 }
