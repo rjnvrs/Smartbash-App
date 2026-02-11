@@ -10,6 +10,7 @@ import {
   FaImage,
   FaUserCircle,
 } from "react-icons/fa";
+import { apiFetch } from "@/lib/api";
 
 type IncidentType = "Fire" | "Flood";
 type PostType = "EVENT" | "HELP";
@@ -30,26 +31,37 @@ type Post = {
 export default function NewsFeedList() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
-
   const [showChooser, setShowChooser] = useState(false);
   const [openComposer, setOpenComposer] = useState(false);
-
   const [postType, setPostType] = useState<PostType>("EVENT");
   const [incidentType, setIncidentType] = useState<IncidentType>("Fire");
   const [text, setText] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [location, setLocation] = useState("");
   const [showLocationInput, setShowLocationInput] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   const menuRef = useRef<HTMLDivElement | null>(null);
 
-  /* LOAD POSTS */
+  const loadPosts = async () => {
+    setError("");
+    try {
+      const res = await apiFetch("/auth/residents/newsfeed/list/", { method: "GET" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to load news feed");
+      setPosts(data.posts || []);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to load news feed";
+      setError(message);
+      setPosts([]);
+    }
+  };
+
   useEffect(() => {
-    const stored = JSON.parse(localStorage.getItem("newsfeed") || "[]");
-    setPosts(stored);
+    loadPosts();
   }, []);
 
-  /* CLOSE MENU */
   useEffect(() => {
     const close = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -60,7 +72,6 @@ export default function NewsFeedList() {
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
-  /* IMAGE UPLOAD */
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -69,65 +80,99 @@ export default function NewsFeedList() {
     reader.readAsDataURL(file);
   };
 
-  /* PUBLISH */
-  const handlePublish = () => {
+  const handlePublish = async () => {
     if (!text.trim() && !image) return;
+    setIsSubmitting(true);
+    setError("");
+    try {
+      const res = await apiFetch("/auth/residents/newsfeed/create/", {
+        method: "POST",
+        body: JSON.stringify({
+          postType,
+          incidentType,
+          content: text,
+          location,
+          image,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to create post");
 
-    const newPost: Post = {
-      id: Date.now(),
-      author: "Mikaylgoan@gmail.com",
-      time: "Just now",
-      postType,
-      incidentType,
-      location: location || undefined,
-      content: text,
-      image: image || undefined,
-      interested: false,
-      saved: false,
-    };
-
-    const updated = [newPost, ...posts];
-    setPosts(updated);
-    localStorage.setItem("newsfeed", JSON.stringify(updated));
-
-    setText("");
-    setImage(null);
-    setLocation("");
-    setIncidentType("Fire");
-    setShowLocationInput(false);
-    setOpenComposer(false);
-    setShowChooser(false);
+      setText("");
+      setImage(null);
+      setLocation("");
+      setIncidentType("Fire");
+      setShowLocationInput(false);
+      setOpenComposer(false);
+      setShowChooser(false);
+      await loadPosts();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to create post";
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const toggleInterested = (id: number) => {
-    const updated = posts.map(p =>
-      p.id === id ? { ...p, interested: !p.interested } : p
-    );
-    setPosts(updated);
-    localStorage.setItem("newsfeed", JSON.stringify(updated));
-    setActiveMenu(null);
+  const toggleInterested = async (id: number) => {
+    try {
+      const res = await apiFetch("/auth/residents/newsfeed/interest/", {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update interest");
+      setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, interested: !!data.interested } : p)));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to update interest";
+      setError(message);
+    } finally {
+      setActiveMenu(null);
+    }
   };
 
-  const toggleSaved = (id: number) => {
-    const updated = posts.map(p =>
-      p.id === id ? { ...p, saved: !p.saved } : p
-    );
-    setPosts(updated);
-    localStorage.setItem("newsfeed", JSON.stringify(updated));
-    setActiveMenu(null);
+  const toggleSaved = async (id: number) => {
+    try {
+      const res = await apiFetch("/auth/residents/newsfeed/save/", {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update saved status");
+      setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, saved: !!data.saved } : p)));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to update saved status";
+      setError(message);
+    } finally {
+      setActiveMenu(null);
+    }
   };
 
-  const deletePost = (id: number) => {
-    const updated = posts.filter(p => p.id !== id);
-    setPosts(updated);
-    localStorage.setItem("newsfeed", JSON.stringify(updated));
-    setActiveMenu(null);
+  const deletePost = async (id: number) => {
+    try {
+      const res = await apiFetch("/auth/residents/newsfeed/delete/", {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to delete post");
+      setPosts((prev) => prev.filter((p) => p.id !== id));
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to delete post";
+      setError(message);
+    } finally {
+      setActiveMenu(null);
+    }
   };
 
   return (
     <div className="max-w-2xl mx-auto py-6 space-y-6">
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
-      {/* WRITE */}
       <div
         onClick={() => setShowChooser(true)}
         className="flex items-center gap-3 bg-white border rounded-full px-4 py-3 cursor-pointer hover:bg-gray-50"
@@ -136,12 +181,9 @@ export default function NewsFeedList() {
         <span className="text-sm text-gray-500">WRITE YOUR STORY</span>
       </div>
 
-      {/* CHOOSER */}
       {showChooser && !openComposer && (
         <div className="bg-white border rounded-2xl p-8 shadow-sm">
           <div className="grid grid-cols-2 gap-8">
-
-            {/* EVENT */}
             <div className="border rounded-2xl p-8 text-center">
               <FaMapMarkerAlt className="mx-auto text-green-500 text-3xl" />
               <h3 className="font-semibold mt-4">Post Actual Event</h3>
@@ -160,13 +202,10 @@ export default function NewsFeedList() {
               </button>
             </div>
 
-            {/* HELP */}
             <div className="border rounded-2xl p-8 text-center">
               <div className="mx-auto text-blue-500 text-3xl">?</div>
               <h3 className="font-semibold mt-4">Post for Help</h3>
-              <p className="text-sm text-gray-500 mt-2">
-                Use this if you want to help from afar.
-              </p>
+              <p className="text-sm text-gray-500 mt-2">Use this if you want to help from afar.</p>
               <button
                 className="mt-6 bg-blue-600 text-white py-3 rounded-full w-full"
                 onClick={() => {
@@ -178,24 +217,18 @@ export default function NewsFeedList() {
                 Create Help Post
               </button>
             </div>
-
           </div>
         </div>
       )}
 
-      {/* COMPOSER */}
       {openComposer && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white w-[820px] rounded-xl shadow-lg">
-
             <div className="flex justify-between px-6 py-4 border-b">
               <p className="font-semibold">
                 {postType === "HELP" ? "Post for Help" : "Post Actual Event"}
               </p>
-              <FaTimes
-                className="cursor-pointer"
-                onClick={() => setOpenComposer(false)}
-              />
+              <FaTimes className="cursor-pointer" onClick={() => setOpenComposer(false)} />
             </div>
 
             <div className="px-6 py-4 space-y-4">
@@ -218,22 +251,16 @@ export default function NewsFeedList() {
                 </div>
               )}
 
-              {image && (
-                <img src={image} className="rounded-lg max-h-64 object-cover" />
-              )}
+              {image && <img src={image} className="rounded-lg max-h-64 object-cover" alt="upload" />}
             </div>
 
             <div className="flex justify-between px-6 py-4 border-t">
               <div className="flex gap-4 items-center">
                 <select
                   value={incidentType}
-                  onChange={(e) =>
-                    setIncidentType(e.target.value as IncidentType)
-                  }
+                  onChange={(e) => setIncidentType(e.target.value as IncidentType)}
                   className={`border rounded-lg px-3 py-1 text-sm ${
-                    incidentType === "Fire"
-                      ? "bg-red-50 text-red-600"
-                      : "bg-blue-50 text-blue-600"
+                    incidentType === "Fire" ? "bg-red-50 text-red-600" : "bg-blue-50 text-blue-600"
                   }`}
                 >
                   <option value="Fire">Fire</option>
@@ -253,16 +280,16 @@ export default function NewsFeedList() {
 
               <button
                 onClick={handlePublish}
-                className="bg-green-500 text-white px-6 py-2 rounded-lg"
+                disabled={isSubmitting}
+                className="bg-green-500 text-white px-6 py-2 rounded-lg disabled:opacity-60"
               >
-                Publish
+                {isSubmitting ? "Publishing..." : "Publish"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* POSTS */}
       {posts.map((post) => (
         <div key={post.id} className="bg-white border rounded-xl shadow-sm">
           <div className="flex justify-between p-4">
@@ -271,16 +298,18 @@ export default function NewsFeedList() {
               <div>
                 <p className="font-semibold text-sm">{post.author}</p>
                 <div className="flex gap-2 text-xs text-gray-500">
-                  <span className={`px-2 rounded-full ${
-                    post.postType === "HELP"
-                      ? "bg-blue-100 text-blue-600"
-                      : post.incidentType === "Fire"
-                      ? "bg-red-100 text-red-600"
-                      : "bg-blue-100 text-blue-600"
-                  }`}>
+                  <span
+                    className={`px-2 rounded-full ${
+                      post.postType === "HELP"
+                        ? "bg-blue-100 text-blue-600"
+                        : post.incidentType === "Fire"
+                        ? "bg-red-100 text-red-600"
+                        : "bg-blue-100 text-blue-600"
+                    }`}
+                  >
                     {post.postType === "HELP" ? "Help" : post.incidentType}
                   </span>
-                  <span>· {post.time}</span>
+                  <span>· {post.time ? new Date(post.time).toLocaleString() : "Just now"}</span>
                 </div>
                 {post.location && (
                   <p className="text-xs text-gray-500 flex gap-1 mt-1">
@@ -293,19 +322,26 @@ export default function NewsFeedList() {
             <div className="relative" ref={menuRef}>
               <FaEllipsisH
                 className="cursor-pointer text-gray-400"
-                onClick={() =>
-                  setActiveMenu(activeMenu === post.id ? null : post.id)
-                }
+                onClick={() => setActiveMenu(activeMenu === post.id ? null : post.id)}
               />
               {activeMenu === post.id && (
                 <div className="absolute right-0 mt-2 w-44 bg-white border rounded-lg shadow-lg">
-                  <button onClick={() => toggleInterested(post.id)} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">
-                    {post.interested ? "★ Interested" : "☆ Mark Interested"}
+                  <button
+                    onClick={() => toggleInterested(post.id)}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+                  >
+                    {post.interested ? "Interested" : "Mark Interested"}
                   </button>
-                  <button onClick={() => toggleSaved(post.id)} className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100">
-                    {post.saved ? "✓ Saved" : "Save Post"}
+                  <button
+                    onClick={() => toggleSaved(post.id)}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-gray-100"
+                  >
+                    {post.saved ? "Saved" : "Save Post"}
                   </button>
-                  <button onClick={() => deletePost(post.id)} className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100">
+                  <button
+                    onClick={() => deletePost(post.id)}
+                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-gray-100"
+                  >
                     Delete Post
                   </button>
                 </div>
@@ -315,13 +351,15 @@ export default function NewsFeedList() {
 
           <div className="px-4 text-sm">{post.content}</div>
 
-          {post.image && (
-            <img src={post.image} className="w-full mt-3 rounded-b-xl" />
-          )}
+          {post.image && <img src={post.image} className="w-full mt-3 rounded-b-xl" alt="post" />}
 
           <div className="flex justify-between px-6 py-3 border-t text-sm text-gray-600">
-            <button className="flex items-center gap-2"><FaRegComment /> Comment</button>
-            <button className="flex items-center gap-2"><FaShare /> Share</button>
+            <button className="flex items-center gap-2">
+              <FaRegComment /> Comment
+            </button>
+            <button className="flex items-center gap-2">
+              <FaShare /> Share
+            </button>
           </div>
         </div>
       ))}

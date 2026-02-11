@@ -34,6 +34,7 @@ interface MapViewProps {
   getIncidentColor: (urgency: UrgencyLevel) => string;
   selectedIncident: Incident | null;
   setSelectedIncident: (incident: Incident | null) => void;
+  onDispatchIncident: (incident: Incident) => void;
 }
 
 /* ================= AUTO CENTER MAP TO SHOW ALL PINS ================= */
@@ -73,6 +74,7 @@ export function MapView({
   getIncidentColor,
   selectedIncident,
   setSelectedIncident,
+  onDispatchIncident,
 }: MapViewProps) {
   const [isBrowser, setIsBrowser] = useState(false);
 
@@ -205,6 +207,7 @@ export function MapView({
           <IncidentPopup
             incident={selectedIncident}
             onClose={() => setSelectedIncident(null)}
+            onDispatch={() => onDispatchIncident(selectedIncident)}
           />
         </div>
       )}

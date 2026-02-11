@@ -25,8 +25,21 @@ export interface Service {
   variant: ServiceVariant;
 }
 
+type DispatchAlert = {
+  id: number;
+  reportId: number;
+  incidentType: string;
+  barangay: string;
+  location: string;
+  status: string;
+  smsSent: boolean;
+  smsError: string;
+  createdAt: string;
+};
+
 export default function Services() {
   const [services, setServices] = useState<Service[]>([]);
+  const [dispatchAlerts, setDispatchAlerts] = useState<DispatchAlert[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -68,8 +81,21 @@ export default function Services() {
     }
   };
 
+  const loadDispatchAlerts = async () => {
+    try {
+      const res = await apiFetch("/auth/services/dispatches/", { method: "GET" });
+      const { data } = await parseJsonSafe(res);
+      if (res.ok) setDispatchAlerts(data.dispatches || []);
+    } catch {
+      // ignore alerts load failure
+    }
+  };
+
   useEffect(() => {
     loadServices();
+    loadDispatchAlerts();
+    const timer = setInterval(loadDispatchAlerts, 10000);
+    return () => clearInterval(timer);
   }, []);
 
   const handleAddService = async (newService: Omit<Service, "id">) => {
@@ -175,6 +201,30 @@ export default function Services() {
             Services registered here will be automatically contacted when
             incident reports reach urgency thresholds.
           </p>
+        </div>
+
+        <div className="bg-white border rounded-2xl px-6 py-4">
+          <h2 className="text-lg font-semibold mb-3">Dispatch Alerts</h2>
+          {dispatchAlerts.length > 0 ? (
+            <div className="space-y-3">
+              {dispatchAlerts.slice(0, 5).map((alert) => (
+                <div key={alert.id} className="rounded-lg border p-3 text-sm">
+                  <div className="font-semibold">
+                    {alert.incidentType} incident (Report #{alert.reportId})
+                  </div>
+                  <div>Barangay: {alert.barangay || "N/A"}</div>
+                  <div>Location: {alert.location || "N/A"}</div>
+                  <div>Status: {alert.status}</div>
+                  <div>
+                    SMS: {alert.smsSent ? "Sent" : "Not sent"}
+                    {alert.smsError ? ` (${alert.smsError})` : ""}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-gray-500">No dispatch alerts yet.</div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

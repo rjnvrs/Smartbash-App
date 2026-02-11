@@ -1,83 +1,99 @@
-"use client"
+"use client";
 
-import { useState, useRef } from "react"
-import { useRouter } from "next/navigation"
-import dynamic from "next/dynamic"
-import Camera from "./Camera"
-import { MapPin, Upload, Send, Flame, Waves } from "lucide-react"
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+import { MapPin, Upload, Send, Flame, Waves } from "lucide-react";
+import Camera from "./Camera";
+import { apiFetch } from "@/lib/api";
 
-/* Load map only on client */
-const IncidentMap = dynamic(() => import("./IncidentMap"), { ssr: false })
+const IncidentMap = dynamic(() => import("./IncidentMap"), { ssr: false });
 
-type IncidentType = "Fire" | "Flood"
+type IncidentType = "Fire" | "Flood";
+type SearchSuggestion = { display_name: string; lat: string; lon: string };
 
 export default function IncidentForm() {
-  const router = useRouter()
+  const router = useRouter();
 
-  const [incidentType, setIncidentType] = useState<IncidentType>("Fire")
-  const [description, setDescription] = useState("")
-  const [location, setLocation] = useState("")
-  const [mapCenter, setMapCenter] = useState<[number, number]>([14.5995, 120.9842])
-  const [images, setImages] = useState<string[]>([])
-  const [capturing, setCapturing] = useState(false)
-  const [suggestions, setSuggestions] = useState<any[]>([])
+  const [incidentType, setIncidentType] = useState<IncidentType>("Fire");
+  const [description, setDescription] = useState("");
+  const [location, setLocation] = useState("");
+  const [mapCenter, setMapCenter] = useState<[number, number]>([14.5995, 120.9842]);
+  const [images, setImages] = useState<string[]>([]);
+  const [capturing, setCapturing] = useState(false);
+  const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState("");
+  const [cameraError, setCameraError] = useState("");
 
-  const typingTimeout = useRef<NodeJS.Timeout | null>(null)
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement | null>(null)
+  const typingTimeout = useRef<NodeJS.Timeout | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  /* ===== CAMERA ===== */
   const startCamera = async () => {
-    setCapturing(true)
+    setCameraError("");
+    const insecureContext =
+      typeof window !== "undefined" &&
+      !window.isSecureContext &&
+      window.location.hostname !== "localhost" &&
+      window.location.hostname !== "127.0.0.1";
+    if (insecureContext) {
+      setCameraError("Camera needs HTTPS (or localhost). Use Upload Image instead.");
+      fileInputRef.current?.click();
+      return;
+    }
+
+    setCapturing(true);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
-      })
+      });
       if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
       }
-    } catch {
-      alert("Camera access denied")
-      setCapturing(false)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Camera access denied";
+      setCameraError(`${message}. You can still upload an image file.`);
+      fileInputRef.current?.click();
+      setCapturing(false);
     }
-  }
+  };
 
   const capturePhoto = () => {
-    const video = videoRef.current
-    const canvas = canvasRef.current
-    if (!video || !canvas) return
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) return;
 
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
-    const ctx = canvas.getContext("2d")
-    if (!ctx) return
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
 
-    ctx.drawImage(video, 0, 0)
-    setImages((p) => [...p, canvas.toDataURL("image/png")])
+    ctx.drawImage(video, 0, 0);
+    setImages((prev) => [...prev, canvas.toDataURL("image/png")]);
 
-    ;(video.srcObject as MediaStream).getTracks().forEach((t) => t.stop())
-    video.srcObject = null
-    setCapturing(false)
-  }
+    (video.srcObject as MediaStream).getTracks().forEach((track) => track.stop());
+    video.srcObject = null;
+    setCapturing(false);
+  };
 
   const cancelCapture = () => {
-    ;(videoRef.current?.srcObject as MediaStream | null)
+    (videoRef.current?.srcObject as MediaStream | null)
       ?.getTracks()
-      ?.forEach((t) => t.stop())
-    if (videoRef.current) videoRef.current.srcObject = null
-    setCapturing(false)
-  }
+      ?.forEach((track) => track.stop());
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setCapturing(false);
+  };
 
-  /* ===== LOCATION SEARCH + DROPDOWN ===== */
   const autoSearchWhileTyping = async (value: string) => {
-    setLocation(value)
-
-    if (typingTimeout.current) clearTimeout(typingTimeout.current)
+    setLocation(value);
+    if (typingTimeout.current) clearTimeout(typingTimeout.current);
 
     if (value.length < 3) {
-      setSuggestions([])
-      return
+      setSuggestions([]);
+      return;
     }
 
     typingTimeout.current = setTimeout(async () => {
@@ -86,44 +102,74 @@ export default function IncidentForm() {
           `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(
             value
           )}`
-        )
-        const data = await res.json()
-        setSuggestions(data)
-      } catch {}
-    }, 400)
-  }
+        );
+        const data = await res.json();
+        setSuggestions(data);
+      } catch {
+        setSuggestions([]);
+      }
+    }, 400);
+  };
 
-  /* ===== SUBMIT REPORT ===== */
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    const tasks = Array.from(files).map(
+      (file) =>
+        new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ""));
+          reader.onerror = () => reject(new Error("Failed to read file"));
+          reader.readAsDataURL(file);
+        })
+    );
+    Promise.all(tasks)
+      .then((encoded) => {
+        setImages((prev) => [...prev, ...encoded.filter(Boolean)]);
+      })
+      .catch(() => {
+        setCameraError("Image upload failed.");
+      });
+    e.target.value = "";
+  };
 
-    const report = {
-      id: Date.now(),
-      type: incidentType.toLowerCase(),
-      status: "waiting",
-      description,
-      location,
-      images,
-      createdAt: Date.now(),
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsSubmitting(true);
+    try {
+      const res = await apiFetch("/auth/residents/incidents/create/", {
+        method: "POST",
+        body: JSON.stringify({
+          type: incidentType.toLowerCase(),
+          description,
+          location,
+          lat: mapCenter[0],
+          lng: mapCenter[1],
+          images,
+        }),
+      });
+      const payload = await res.json();
+      if (!res.ok) throw new Error(payload.message || "Failed to submit report");
+
+      setDescription("");
+      setLocation("");
+      setImages([]);
+      setIncidentType("Fire");
+      router.push("/dashboards/residents/reports");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to submit report";
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const existing = JSON.parse(localStorage.getItem("incident_reports") || "[]")
-    localStorage.setItem("incident_reports", JSON.stringify([report, ...existing]))
-
-    setDescription("")
-    setLocation("")
-    setImages([])
-    setIncidentType("Fire")
-
-    router.push("/dashboards/residents/reports")
-  }
+  };
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-start px-4 py-10">
       <div className="max-w-3xl w-full bg-white rounded-2xl shadow-xl p-8 mt-6">
         <h2 className="text-xl font-semibold mb-6">Report an Environmental Incident</h2>
 
-        {/* INCIDENT TYPE */}
         <div className="flex gap-6 mb-6">
           <button
             type="button"
@@ -149,7 +195,17 @@ export default function IncidentForm() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          {/* DESCRIPTION */}
+          {error && (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+          {cameraError && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              {cameraError}
+            </div>
+          )}
+
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -158,7 +214,6 @@ export default function IncidentForm() {
             required
           />
 
-          {/* LOCATION + DROPDOWN */}
           <div className="flex gap-2 mb-4 relative">
             <div className="relative flex-1 z-[1000]">
               <input
@@ -175,12 +230,12 @@ export default function IncidentForm() {
                       key={i}
                       className="p-2 hover:bg-gray-100 cursor-pointer text-sm"
                       onClick={() => {
-                        setLocation(s.display_name)
-                        setMapCenter([parseFloat(s.lat), parseFloat(s.lon)])
-                        setSuggestions([])
+                        setLocation(s.display_name);
+                        setMapCenter([parseFloat(s.lat), parseFloat(s.lon)]);
+                        setSuggestions([]);
                       }}
                     >
-                      📍 {s.display_name}
+                      {s.display_name}
                     </div>
                   ))}
                 </div>
@@ -201,19 +256,17 @@ export default function IncidentForm() {
             </button>
           </div>
 
-          {/* MAP (always mounted to prevent _leaflet_pos error) */}
           <div className={`${capturing ? "hidden" : "block"} mb-6`}>
             <IncidentMap mapCenter={mapCenter} setLocation={setLocation} />
           </div>
 
-          {/* CAMERA TRIGGER */}
           <div
             onClick={() => !capturing && startCamera()}
             className="border-2 border-dashed rounded-xl p-6 text-center mb-6 cursor-pointer"
           >
             {images.length ? (
               images.map((img, i) => (
-                <img key={i} src={img} className="rounded-xl mb-2" />
+                <img key={i} src={img} className="rounded-xl mb-2" alt={`incident-${i}`} />
               ))
             ) : (
               <>
@@ -222,25 +275,31 @@ export default function IncidentForm() {
               </>
             )}
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handleImageUpload}
+            className="hidden"
+          />
 
-          {/* CAMERA OVERLAY */}
           {capturing && (
-            <Camera
-              videoRef={videoRef}
-              capturePhoto={capturePhoto}
-              cancelCapture={cancelCapture}
-            />
+            <Camera videoRef={videoRef} capturePhoto={capturePhoto} cancelCapture={cancelCapture} />
           )}
 
           <canvas ref={canvasRef} className="hidden" />
 
-          {/* SUBMIT */}
-          <button type="submit" className="w-full bg-black text-white py-3 rounded-xl">
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full bg-black text-white py-3 rounded-xl disabled:opacity-60"
+          >
             <Send className="inline mr-2" />
-            Submit Report
+            {isSubmitting ? "Submitting..." : "Submit Report"}
           </button>
         </form>
       </div>
     </div>
-  )
+  );
 }

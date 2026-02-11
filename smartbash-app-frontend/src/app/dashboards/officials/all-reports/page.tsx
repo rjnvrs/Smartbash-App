@@ -10,12 +10,14 @@ import Pagination from "../../../../components/ui/Pagination";
 import { ReportCategory } from "../../../../components/core-ui/official-components/all-reports-components/ReportsTable";
 import { ReportStatus } from "../../../../components/core-ui/official-components/all-reports-components/ReportsTable";
 import { AlertTriangle, Filter, X } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 export default function AllReports() {
   const [status, setStatus] = useState<ReportStatus>("All Status");
   const [category, setCategory] = useState<ReportCategory>("All Categories");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const REPORT_STATUSES: ReportStatus[] = ["All Status", "Pending", "In Progress", "Completed"];
   const REPORT_CATEGORIES: ReportCategory[] = ["All Categories", "Fire", "Flood"];
@@ -26,6 +28,20 @@ export default function AllReports() {
   };
 
   const hasActiveFilters = status !== "All Status" || category !== "All Categories";
+
+  const handleDispatchAll = async () => {
+    try {
+      const res = await apiFetch("/auth/officials/reports/dispatch-all/", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to dispatch all");
+      setRefreshKey((prev) => prev + 1);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to dispatch all";
+      window.alert(message);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -41,7 +57,10 @@ export default function AllReports() {
             </p>
           </div>
 
-          <button className="bg-red-600 text-white font-medium px-4 py-2 md:px-5 md:py-2.5 rounded-full hover:bg-red-700 transition-colors flex items-center gap-2 whitespace-nowrap text-sm md:text-base sm:mr-5">
+          <button
+            onClick={handleDispatchAll}
+            className="bg-red-600 text-white font-medium px-4 py-2 md:px-5 md:py-2.5 rounded-full hover:bg-red-700 transition-colors flex items-center gap-2 whitespace-nowrap text-sm md:text-base sm:mr-5"
+          >
             <AlertTriangle className="w-4 h-4 md:w-5 md:h-5 text-yellow-500" />
             Dispatch All
           </button>
@@ -185,7 +204,7 @@ export default function AllReports() {
 
         {/* Reports Table */}
         <div className="overflow-x-auto">
-          <ReportsTable selectedStatus={status} selectedCategory={category} searchQuery={searchQuery} />
+          <ReportsTable selectedStatus={status} selectedCategory={category} searchQuery={searchQuery} refreshKey={refreshKey} />
         </div>
 
         {/* Pagination */}

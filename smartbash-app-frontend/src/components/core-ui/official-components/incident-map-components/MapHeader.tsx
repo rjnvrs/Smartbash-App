@@ -1,11 +1,11 @@
 "use client"
 
 interface MapHeaderProps {
-  autoDispatch: boolean;
-  setAutoDispatch: (value: boolean) => void;
+  isDispatching: boolean;
+  onAutoDispatch: () => void;
 }
 
-export function MapHeader({ autoDispatch, setAutoDispatch }: MapHeaderProps) {
+export function MapHeader({ isDispatching, onAutoDispatch }: MapHeaderProps) {
   return (
     <div className="flex items-center justify-between mb-6">
       <div>
@@ -13,14 +13,11 @@ export function MapHeader({ autoDispatch, setAutoDispatch }: MapHeaderProps) {
         <p className="text-gray-500 mt-1">Urgency heatmap</p>
       </div>
       <button
-        onClick={() => setAutoDispatch(!autoDispatch)}
-        className={`px-6 py-2.5 rounded-lg font-medium transition-colors ${
-          autoDispatch 
-            ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            : 'bg-red-600 text-white hover:bg-red-700'
-        }`}
+        onClick={onAutoDispatch}
+        disabled={isDispatching}
+        className="px-6 py-2.5 rounded-lg font-medium transition-colors bg-red-600 text-white hover:bg-red-700 disabled:opacity-60"
       >
-        Auto Dispatch
+        {isDispatching ? "Dispatching..." : "Auto Dispatch"}
       </button>
     </div>
   );

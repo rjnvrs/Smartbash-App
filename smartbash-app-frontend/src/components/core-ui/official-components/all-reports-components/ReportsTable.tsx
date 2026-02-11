@@ -19,12 +19,14 @@ interface ReportsTableProps {
   selectedStatus: "All Status" | Report["status"];
   selectedCategory: "All Categories" | Report["category"];
   searchQuery: string;
+  refreshKey?: number;
 }
 
-export default function ReportsTable({ selectedStatus, selectedCategory, searchQuery }: ReportsTableProps) {
+export default function ReportsTable({ selectedStatus, selectedCategory, searchQuery, refreshKey = 0 }: ReportsTableProps) {
   const [reports, setReports] = useState<Report[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
 
   const loadReports = async () => {
     setIsLoading(true);
@@ -34,7 +36,17 @@ export default function ReportsTable({ selectedStatus, selectedCategory, searchQ
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to load reports");
 
-      const normalized: Report[] = (data.reports || []).map((r: any) => {
+      const normalized: Report[] = (data.reports || []).map((r: {
+        id: number;
+        category: string;
+        description: string;
+        location: string;
+        date: string;
+        status: Report["status"];
+        images?: string[];
+        residentName?: string;
+        residentEmail?: string;
+      }) => {
         const isFire = (r.category || "").toLowerCase() === "fire";
         const statusColor =
           r.status === "Pending"
@@ -50,12 +62,16 @@ export default function ReportsTable({ selectedStatus, selectedCategory, searchQ
           date: r.date ? new Date(r.date).toLocaleString() : "",
           status: r.status,
           statusColor,
+          images: r.images || [],
+          residentName: r.residentName || "",
+          residentEmail: r.residentEmail || "",
         };
       });
 
       setReports(normalized);
-    } catch (err: any) {
-      setError(err.message || "Failed to load reports");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to load reports";
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -63,7 +79,26 @@ export default function ReportsTable({ selectedStatus, selectedCategory, searchQ
 
   useEffect(() => {
     loadReports();
-  }, []);
+  }, [refreshKey]);
+
+  const handleDispatch = async (id: number) => {
+    try {
+      const res = await apiFetch("/auth/officials/reports/dispatch/", {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to dispatch");
+      loadReports();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to dispatch";
+      setError(message);
+    }
+  };
+
+  const handleDetails = (report: Report) => {
+    setSelectedReport(report);
+  };
 
   const filteredReports = useMemo(() => reports.filter((report) => {
     const statusMatch =
@@ -114,7 +149,7 @@ export default function ReportsTable({ selectedStatus, selectedCategory, searchQ
             )}
             {!isLoading && !error && filteredReports.length > 0 ? (
               filteredReports.map((report) => (
-                <ReportRow key={report.id} report={report} />
+                <ReportRow key={report.id} report={report} onDispatch={handleDispatch} onDetails={handleDetails} />
               ))
             ) : (
               <TableRow>
@@ -156,23 +191,68 @@ export default function ReportsTable({ selectedStatus, selectedCategory, searchQ
                 {report.location}
               </div>
 
-              <div className="flex justify-between items-center">
-                <div className="text-xs text-gray-500">{report.date}</div>
-                <div className="flex gap-2">
-                  <button className="bg-black text-white text-xs font-medium px-3 py-1 rounded-full">
-                    Dispatch
-                  </button>
-                  <button className="bg-gray-100 text-gray-800 text-xs font-medium px-3 py-1 rounded-full border">
-                    Details
-                  </button>
+                <div className="flex justify-between items-center">
+                  <div className="text-xs text-gray-500">{report.date}</div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleDispatch(report.id)}
+                      className="bg-black text-white text-xs font-medium px-3 py-1 rounded-full"
+                    >
+                      Dispatch
+                    </button>
+                    <button
+                      onClick={() => handleDetails(report)}
+                      className="bg-gray-100 text-gray-800 text-xs font-medium px-3 py-1 rounded-full border"
+                    >
+                      Details
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
           ))
         ) : (
           <div className="text-center text-gray-500">No reports found</div>
         )}
       </div>
+
+      {selectedReport && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b p-4">
+              <h3 className="text-lg font-semibold">Report Details</h3>
+              <button
+                onClick={() => setSelectedReport(null)}
+                className="rounded px-2 py-1 text-sm hover:bg-gray-100"
+              >
+                Close
+              </button>
+            </div>
+            <div className="space-y-3 p-4 text-sm">
+              <div><span className="font-semibold">Category:</span> {selectedReport.category}</div>
+              <div><span className="font-semibold">Status:</span> {selectedReport.status}</div>
+              <div><span className="font-semibold">Date:</span> {selectedReport.date}</div>
+              <div><span className="font-semibold">Location:</span> {selectedReport.location}</div>
+              <div><span className="font-semibold">Resident:</span> {selectedReport.residentName || "-"} ({selectedReport.residentEmail || "-"})</div>
+              <div>
+                <span className="font-semibold">Description:</span>
+                <p className="mt-1 whitespace-pre-wrap">{selectedReport.description || "-"}</p>
+              </div>
+              <div>
+                <span className="font-semibold">Attached Images:</span>
+                {selectedReport.images && selectedReport.images.length > 0 ? (
+                  <div className="mt-2 grid grid-cols-2 gap-3">
+                    {selectedReport.images.map((img, idx) => (
+                      <img key={`${selectedReport.id}-${idx}`} src={img} alt={`report-${selectedReport.id}-${idx}`} className="h-40 w-full rounded border object-cover" />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-gray-500">No attached images.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

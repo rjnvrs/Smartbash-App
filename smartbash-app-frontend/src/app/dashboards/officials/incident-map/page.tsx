@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { ChevronLeft } from "lucide-react";
 
@@ -11,6 +11,7 @@ import { FilterTabs } from "../../../../components/core-ui/official-components/i
 import { UrgencyLegend } from "../../../../components/core-ui/official-components/incident-map-components/UrgencyLegend";
 import { ClusterDetails } from "../../../../components/core-ui/official-components/incident-map-components/ClusterDetails";
 import { MapSearchBar } from "../../../../components/core-ui/official-components/incident-map-components/MapSearchbar";
+import { apiFetch } from "@/lib/api";
 
 // Types
 export type IncidentType = "fire" | "flood";
@@ -24,46 +25,31 @@ export interface Incident {
   lat: number;
   lon: number;
   location: string;
+  reportIds?: number[];
 }
 
-interface StoredReport {
-  id: number;
-  type: "fire" | "flood";
-  status: "completed" | "waiting" | "inprogress";
-  description: string;
-  location: string;
-  images?: string[];
-  createdAt: number;
-}
-
-// Geocoding cache
 const geocodeCache: Record<string, { lat: number; lon: number }> = {};
 
-const extractCoordinates = (location: string) => {
-  const latMatch = location.match(/Lat:\s*([-\d.]+)/i);
-  const lngMatch = location.match(/Lng:\s*([-\d.]+)/i);
-  if (latMatch && lngMatch) return { lat: parseFloat(latMatch[1]), lon: parseFloat(lngMatch[1]) };
-  return null;
-};
-
 const geocodeLocation = async (location: string) => {
+  if (!location) return { lat: 10.3157, lon: 123.8854 };
   if (geocodeCache[location]) return geocodeCache[location];
-
-  const extracted = extractCoordinates(location);
-  if (extracted) return extracted;
-
   const res = await fetch(
-    `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}`
+    `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(location)}`
   );
   const data = await res.json();
-
-  const coords =
-    data.length > 0
+  const value =
+    Array.isArray(data) && data.length > 0
       ? { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) }
       : { lat: 10.3157, lon: 123.8854 };
+  geocodeCache[location] = value;
+  return value;
+};
 
-  geocodeCache[location] = coords;
-  return coords;
+const urgencyFromCount = (count: number): UrgencyType => {
+  if (count <= 1) return "Low";
+  if (count <= 4) return "Moderate";
+  if (count <= 6) return "High";
+  return "Critical";
 };
 
 // Loading skeleton
@@ -89,7 +75,7 @@ const MapView = dynamic(
 
 export default function IncidentMap() {
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
-  const [autoDispatch, setAutoDispatch] = useState(false);
+  const [isDispatching, setIsDispatching] = useState(false);
   const [selectedType, setSelectedType] = useState<IncidentType | "All">("All");
   const [selectedUrgency, setSelectedUrgency] = useState<UrgencyType | "All">("All");
   const [searchQuery, setSearchQuery] = useState("");
@@ -97,6 +83,54 @@ export default function IncidentMap() {
   const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [isMapLoading, setIsMapLoading] = useState(true);
+  const [dismissedIncidentIds, setDismissedIncidentIds] = useState<number[]>([]);
+
+  const loadIncidents = async () => {
+    try {
+      const res = await apiFetch("/auth/officials/incidents/map/", { method: "GET" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to load incidents");
+      const rawIncidents = (data.incidents || []) as Array<{
+        id: number;
+        type: IncidentType;
+        urgency: UrgencyType;
+        reports: number;
+        lat: number | null;
+        lon: number | null;
+        location: string;
+        reportIds?: number[];
+      }>;
+
+      const mapped: Incident[] = [];
+      for (const item of rawIncidents) {
+        let lat = item.lat;
+        let lon = item.lon;
+        if (
+          lat === null ||
+          lon === null ||
+          Number.isNaN(Number(lat)) ||
+          Number.isNaN(Number(lon))
+        ) {
+          const coords = await geocodeLocation(item.location || "");
+          lat = coords.lat;
+          lon = coords.lon;
+        }
+        mapped.push({
+          id: item.id,
+          type: item.type,
+          urgency: item.urgency || urgencyFromCount(item.reports || 1),
+          reports: item.reports || (item.reportIds?.length || 1),
+          lat: Number(lat),
+          lon: Number(lon),
+          location: item.location || "",
+          reportIds: item.reportIds || [item.id],
+        });
+      }
+      setAllIncidents(mapped);
+    } catch {
+      setAllIncidents([]);
+    }
+  };
 
   // Detect mobile
   useEffect(() => {
@@ -112,60 +146,70 @@ export default function IncidentMap() {
     return () => clearTimeout(timer);
   }, []);
 
-  const getUrgencyByReportCount = (count: number): UrgencyType => {
-    if (count === 1) return "Low";
-    if (count <= 4) return "Moderate";
-    if (count <= 6) return "High";
-    return "Critical";
+  useEffect(() => {
+    loadIncidents();
+  }, []);
+
+  const handleAutoDispatch = async () => {
+    setIsDispatching(true);
+    try {
+      await apiFetch("/auth/officials/reports/dispatch-all/", { method: "POST" });
+      await loadIncidents();
+    } finally {
+      setIsDispatching(false);
+    }
   };
 
-  const convertReportsToIncidents = async (reports: StoredReport[]) => {
-    const grouped: Record<string, StoredReport[]> = {};
-    reports.forEach((r) => {
-      const key = `${r.location}-${r.type}`;
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(r);
-    });
-
-    const results: Incident[] = [];
-    for (const group of Object.values(grouped)) {
-      const first = group[0];
-      const coords = await geocodeLocation(first.location);
-      results.push({
-        id: results.length + 1,
-        type: first.type,
-        urgency: getUrgencyByReportCount(group.length),
-        reports: group.length,
-        lat: coords.lat,
-        lon: coords.lon,
-        location: first.location,
+  const handleDispatchIncident = async (incident: Incident) => {
+    const ids = incident.reportIds && incident.reportIds.length > 0 ? incident.reportIds : [incident.id];
+    for (const id of ids) {
+      await apiFetch("/auth/officials/reports/dispatch/", {
+        method: "POST",
+        body: JSON.stringify({ id }),
       });
     }
-    return results;
+    await loadIncidents();
+    setSelectedIncident(null);
   };
 
-  // Load incidents
+  const handleDispatchIncidentById = async (incidentId: number) => {
+    const incident = allIncidents.find((item) => item.id === incidentId);
+    if (!incident) return;
+    await handleDispatchIncident(incident);
+  };
+
+  const handleCloseIncidentById = (incidentId: number) => {
+    setDismissedIncidentIds((prev) => [...prev, incidentId]);
+    if (selectedIncident?.id === incidentId) setSelectedIncident(null);
+  };
+
   useEffect(() => {
-    const loadIncidents = async () => {
-      const storedReports: StoredReport[] = JSON.parse(localStorage.getItem("incident_reports") || "[]");
-      if (storedReports.length === 0) {
-        setAllIncidents([{ id: 1, type: "fire", urgency: "High", lat: 10.3, lon: 123.9, reports: 9, location: "Basak Pardo, Cebu City" }]);
-      } else {
-        const converted = await convertReportsToIncidents(storedReports);
-        setAllIncidents(converted);
+    const timer = setInterval(() => {
+      loadIncidents();
+    }, 3000);
+
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        loadIncidents();
       }
     };
-    loadIncidents();
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
 
   const filteredIncidents = useMemo(() => {
     return allIncidents.filter((i) => {
+      if (dismissedIncidentIds.includes(i.id)) return false;
       const typeMatch = selectedType === "All" || i.type === selectedType;
       const urgencyMatch = selectedUrgency === "All" || i.urgency === selectedUrgency;
       const searchMatch = !searchQuery || i.location.toLowerCase().includes(searchQuery.toLowerCase()) || i.type.toLowerCase().includes(searchQuery.toLowerCase());
       return typeMatch && urgencyMatch && searchMatch;
     });
-  }, [allIncidents, selectedType, selectedUrgency, searchQuery]);
+  }, [allIncidents, dismissedIncidentIds, selectedType, selectedUrgency, searchQuery]);
 
   const getIncidentColor = (urgency: UrgencyType) => {
     const colors = { Low: "bg-green-500", Moderate: "bg-yellow-400", High: "bg-red-500", Critical: "bg-purple-500" };
@@ -181,7 +225,7 @@ export default function IncidentMap() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
         <div className="bg-white m-3 sm:m-6 rounded-lg shadow-sm p-4 sm:p-6 flex-shrink-0">
-          <MapHeader autoDispatch={autoDispatch} setAutoDispatch={setAutoDispatch} />
+          <MapHeader isDispatching={isDispatching} onAutoDispatch={handleAutoDispatch} />
           <FilterTabs selectedType={selectedType} onTypeChange={setSelectedType} />
           <UrgencyLegend getIncidentColor={getIncidentColor} />
         </div>
@@ -204,6 +248,7 @@ export default function IncidentMap() {
                   getIncidentColor={getIncidentColor}
                   selectedIncident={selectedIncident}
                   setSelectedIncident={setSelectedIncident}
+                  onDispatchIncident={handleDispatchIncident}
                 />
               )}
             </div>
@@ -229,7 +274,9 @@ export default function IncidentMap() {
                 >
                   <ClusterDetails
                     clusterIncidents={filteredIncidents}
-                    onCollapse={() => !isMobile && setIsPanelCollapsed(true)}
+                    onCollapse={() => setIsPanelCollapsed(true)}
+                    onDispatchIncident={handleDispatchIncidentById}
+                    onCloseIncident={handleCloseIncidentById}
                   />
                 </div>
               )}

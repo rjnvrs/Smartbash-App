@@ -11,13 +11,18 @@ export type Report = {
   date: string;
   status: "Pending" | "In Progress" | "Completed";
   statusColor: string;
+  images?: string[];
+  residentName?: string;
+  residentEmail?: string;
 };
 
 interface ReportRowProps {
   report: Report;
+  onDispatch: (id: number) => void;
+  onDetails: (report: Report) => void;
 }
 
-export default function ReportRow({ report }: ReportRowProps) {
+export default function ReportRow({ report, onDispatch, onDetails }: ReportRowProps) {
   return (
     <TableRow className="hover:bg-gray-50 transition-colors">
       {/* Category */}
@@ -75,10 +80,16 @@ export default function ReportRow({ report }: ReportRowProps) {
       {/* Actions */}
       <TableCell className="px-3 py-3 md:px-4 lg:px-6 md:py-4 whitespace-nowrap">
         <div className="flex flex-col sm:flex-row gap-1 md:gap-2">
-          <button className="bg-black text-white text-xs md:text-sm font-medium px-2 py-1 md:px-3 md:py-2 rounded-full hover:bg-gray-900 transition-all duration-200">
+          <button
+            onClick={() => onDispatch(report.id)}
+            className="bg-black text-white text-xs md:text-sm font-medium px-2 py-1 md:px-3 md:py-2 rounded-full hover:bg-gray-900 transition-all duration-200"
+          >
             Dispatch
           </button>
-          <button className="bg-gray-100 text-gray-800 text-xs md:text-sm font-medium px-2 py-1 md:px-3 md:py-2 rounded-full hover:bg-gray-200 transition-all duration-200 border border-gray-300">
+          <button
+            onClick={() => onDetails(report)}
+            className="bg-gray-100 text-gray-800 text-xs md:text-sm font-medium px-2 py-1 md:px-3 md:py-2 rounded-full hover:bg-gray-200 transition-all duration-200 border border-gray-300"
+          >
             Details
           </button>
         </div>

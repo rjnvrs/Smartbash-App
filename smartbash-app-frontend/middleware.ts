@@ -10,7 +10,7 @@ const protectedRoutes = [
 export function middleware(request: NextRequest) {
   const token = request.cookies.get("access_token")?.value;
   const pathname = request.nextUrl.pathname;
-
+  
   // Check if route is protected
   const isProtected = protectedRoutes.some((route) =>
     pathname.startsWith(route)
