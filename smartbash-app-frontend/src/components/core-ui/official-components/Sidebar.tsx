@@ -11,6 +11,7 @@ import {
   Briefcase,
   Users,
   PanelLeft,
+  Settings, // ✅ ADDED
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -25,6 +26,9 @@ export default function Sidebar() {
     { name: "AI Assistant", icon: Bot, href: "/dashboards/officials/ai-assistant" },
     { name: "Services", icon: Briefcase, href: "/dashboards/officials/services" },
     { name: "Residents Approval", icon: Users, href: "/dashboards/officials/residents-approval" },
+
+    // ✅ SETTINGS ADDED BELOW RESIDENTS APPROVAL
+    { name: "Settings", icon: Settings, href: "/dashboards/officials/settings" },
   ];
 
   return (
@@ -82,7 +86,11 @@ export default function Sidebar() {
             const active = pathname === item.href;
 
             return (
-              <Link key={item.name} href={item.href} onClick={() => setMobileOpen(false)}>
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+              >
                 <div
                   className={`group flex items-center gap-5 cursor-pointer px-4 py-3.5 rounded-xl transition ${
                     active ? "bg-green-50" : "hover:bg-gray-50"

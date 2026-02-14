@@ -1,34 +1,76 @@
-'use client'
+"use client";
 
-import Link from "next/link"
-import { FaUserCircle, FaSignOutAlt } from "react-icons/fa"
-import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { FaSignOutAlt } from "react-icons/fa";
+import { usePathname, useRouter } from "next/navigation";
 
 export default function Header() {
-  const pathname = usePathname()
-  const router = useRouter()
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const defaultProfile =
+    "https://ui-avatars.com/api/?name=User&background=E5E7EB&color=111827&size=256";
+
+  const [profileImage, setProfileImage] = useState(defaultProfile);
+  const [fullName, setFullName] = useState("User");
+
+  /* ================= LOAD PROFILE ================= */
+  useEffect(() => {
+    const loadProfile = () => {
+      const savedImage = localStorage.getItem("residentProfileImage");
+      const savedName = localStorage.getItem("residentFullName");
+
+      if (savedImage && savedImage !== "null") {
+        setProfileImage(savedImage);
+      }
+
+      if (savedName && savedName.trim() !== "") {
+        setFullName(savedName);
+      }
+    };
+
+    loadProfile();
+
+    window.addEventListener("profileUpdated", loadProfile);
+
+    return () => {
+      window.removeEventListener("profileUpdated", loadProfile);
+    };
+  }, []);
 
   const handleLogout = () => {
-    router.push("/") // redirect on logout
-  }
+    router.push("/");
+  };
 
   const tabClass = (active: boolean) =>
     `pb-2 font-medium ${
       active
         ? "border-b-2 border-green-600 text-green-700"
         : "text-gray-600 hover:text-black transition"
-    }`
+    }`;
 
   return (
     <header className="bg-white border-b">
       <div className="max-w-7xl mx-auto px-6 py-3">
 
-        {/* ROW 1 — Avatar + email (left), Logout (right) */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <FaUserCircle className="text-3xl text-gray-700" />
+
+          {/* CLICKABLE PROFILE */}
+          <div
+            onClick={() => router.push("/dashboards/residents/settings")}
+            className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition"
+          >
+            <div className="w-9 h-9 rounded-full overflow-hidden bg-gray-300">
+              <img
+                src={profileImage}
+                alt="Profile"
+                className="w-full h-full object-cover"
+              />
+            </div>
+
             <span className="text-sm text-gray-700">
-              mikaylgoan@gmail.com
+              {fullName}
             </span>
           </div>
 
@@ -41,20 +83,14 @@ export default function Header() {
           </button>
         </div>
 
-        {/* ROW 2 — Navigation Tabs */}
         <nav className="flex gap-10 mt-6">
-
-          {/* Report Incidents */}
           <Link
             href="/dashboards/residents"
-            className={tabClass(
-              pathname === "/dashboards/residents"
-            )}
+            className={tabClass(pathname === "/dashboards/residents")}
           >
             Report Incidents
           </Link>
 
-          {/* Reports */}
           <Link
             href="/dashboards/residents/reports"
             className={tabClass(
@@ -64,7 +100,6 @@ export default function Header() {
             Reports
           </Link>
 
-          {/* News Feed */}
           <Link
             href="/dashboards/residents/news-feed"
             className={tabClass(
@@ -73,9 +108,8 @@ export default function Header() {
           >
             News Feed
           </Link>
-
         </nav>
       </div>
     </header>
-  )
+  );
 }

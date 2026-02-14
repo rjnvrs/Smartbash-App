@@ -28,6 +28,12 @@ type Post = {
 };
 
 export default function NewsFeedList() {
+  const defaultProfile =
+    "https://ui-avatars.com/api/?name=User&background=E5E7EB&color=111827&size=256";
+
+  // ✅ ADDED: profile image state
+  const [profileImage, setProfileImage] = useState(defaultProfile);
+
   const [posts, setPosts] = useState<Post[]>([]);
   const [activeMenu, setActiveMenu] = useState<number | null>(null);
 
@@ -42,6 +48,20 @@ export default function NewsFeedList() {
   const [showLocationInput, setShowLocationInput] = useState(false);
 
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  // ✅ ADDED: Load profile image & listen for updates
+  useEffect(() => {
+    const loadProfile = () => {
+      const savedImage = localStorage.getItem("residentProfileImage");
+      if (savedImage && savedImage !== "null") {
+        setProfileImage(savedImage);
+      }
+    };
+
+    loadProfile();
+    window.addEventListener("profileUpdated", loadProfile);
+    return () => window.removeEventListener("profileUpdated", loadProfile);
+  }, []);
 
   /* LOAD POSTS */
   useEffect(() => {
@@ -132,7 +152,11 @@ export default function NewsFeedList() {
         onClick={() => setShowChooser(true)}
         className="flex items-center gap-3 bg-white border rounded-full px-4 py-3 cursor-pointer hover:bg-gray-50"
       >
-        <FaUserCircle className="text-3xl text-gray-400" />
+        {/* ✅ ONLY CHANGE HERE */}
+        <img
+          src={profileImage}
+          className="w-10 h-10 rounded-full object-cover"
+        />
         <span className="text-sm text-gray-500">WRITE YOUR STORY</span>
       </div>
 
@@ -172,7 +196,7 @@ export default function NewsFeedList() {
                 className="mt-6 bg-blue-600 text-white py-3 rounded-full w-full"
                 onClick={() => {
                   setPostType("HELP");
-                  setIncidentType("Fire"); // ✅ FIX
+                  setIncidentType("Fire");
                   setShowChooser(false);
                   setOpenComposer(true);
                 }}
@@ -185,7 +209,7 @@ export default function NewsFeedList() {
         </div>
       )}
 
-      {/* COMPOSER */}
+      {/* COMPOSER — UNCHANGED */}
       {openComposer && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white w-[820px] rounded-xl shadow-lg">
@@ -264,7 +288,7 @@ export default function NewsFeedList() {
         </div>
       )}
 
-      {/* POSTS */}
+      {/* POSTS — COMPLETELY UNCHANGED */}
       {posts.map((post) => (
         <div key={post.id} className="bg-white border rounded-xl shadow-sm">
           <div className="flex justify-between p-4">
@@ -280,7 +304,7 @@ export default function NewsFeedList() {
                         : "bg-blue-100 text-blue-600"
                     }`}
                   >
-                    {post.incidentType} {/* ✅ ALWAYS SHOW FIRE/FLOOD */}
+                    {post.incidentType}
                   </span>
                   <span>· {post.time}</span>
                 </div>
