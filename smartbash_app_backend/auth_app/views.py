@@ -17,6 +17,7 @@ import os
 import json
 import urllib.request
 import urllib.error
+import urllib.parse
 import re
 
 
@@ -287,6 +288,15 @@ def _parse_lat_lng(value: str | None):
     return None, None
 
 
+def _absolute_url(request, url: str | None) -> str | None:
+    if not url:
+        return None
+    try:
+        return request.build_absolute_uri(url)
+    except Exception:
+        return url
+
+
 def _normalize_incident_type(value: str | None) -> str:
     if (value or "").lower() == "flood":
         return "Flood"
@@ -325,6 +335,40 @@ def _canonical_barangay(value: str | None) -> str:
     return normalized
 
 
+def _barangay_key(value: str | None) -> str:
+    normalized = _normalize_barangay(value)
+    normalized = normalized.replace("barangay ", "", 1)
+    normalized = normalized.replace("brgy. ", "", 1).replace("brgy ", "", 1)
+    return " ".join(normalized.split())
+
+
+def _matches_official_barangay(official_barangay: str | None, resident_location: str | None) -> bool:
+    official_key = _barangay_key(official_barangay)
+    if not official_key:
+        return True
+
+    resident_key = _barangay_key(resident_location)
+    if not resident_key:
+        return False
+
+    official_canonical = _canonical_barangay(official_key)
+    resident_canonical = _canonical_barangay(resident_key)
+
+    if official_key in resident_key or resident_key in official_key:
+        return True
+
+    if official_canonical == resident_canonical:
+        return True
+
+    if official_canonical and official_canonical in resident_canonical:
+        return True
+
+    if resident_canonical and resident_canonical in official_canonical:
+        return True
+
+    return False
+
+
 def _normalize_phone_number(raw_phone: str | None) -> str:
     phone = re.sub(r"[^0-9+]", "", (raw_phone or "").strip())
     if not phone:
@@ -341,7 +385,75 @@ def _normalize_phone_number(raw_phone: str | None) -> str:
     return phone
 
 
+def _normalize_phone_for_semaphore(raw_phone: str | None) -> str:
+    phone = _normalize_phone_number(raw_phone)
+    digits = re.sub(r"[^0-9]", "", phone)
+    if not digits:
+        return ""
+    # Semaphore accepts local PH mobile format. Convert to 09XXXXXXXXX.
+    if digits.startswith("63") and len(digits) == 12:
+        return f"0{digits[2:]}"
+    if digits.startswith("9") and len(digits) == 10:
+        return f"0{digits}"
+    if digits.startswith("09") and len(digits) == 11:
+        return digits
+    return phone
+
+
 def _send_dispatch_sms(service, message_text: str) -> tuple[bool, str | None]:
+    provider = (os.environ.get("SMS_PROVIDER") or "SEMAPHORE").strip().upper()
+
+    if provider == "SEMAPHORE":
+        semaphore_api_key = (
+            os.environ.get("SEMAPHORE_API_KEY")
+            or os.environ.get("SMS_API_KEY")
+            or ""
+        ).strip()
+        semaphore_api_url = (
+            os.environ.get("SEMAPHORE_API_URL")
+            or os.environ.get("SMS_API_URL")
+            or "https://api.semaphore.co/api/v4/messages"
+        ).strip()
+        semaphore_sender_name = (os.environ.get("SEMAPHORE_SENDER_NAME") or "").strip()
+        phone = _normalize_phone_for_semaphore(service.svc_contact_number)
+
+        if not semaphore_api_key:
+            return False, "SMS provider not configured: missing SEMAPHORE_API_KEY"
+        if not semaphore_api_url:
+            return False, "SMS provider not configured: missing SEMAPHORE_API_URL"
+        if not phone:
+            return False, "Service contact number missing"
+
+        form_data = {
+            "apikey": semaphore_api_key,
+            "number": phone,
+            "message": message_text,
+        }
+        if semaphore_sender_name:
+            form_data["sendername"] = semaphore_sender_name
+
+        payload = urllib.parse.urlencode(form_data).encode("utf-8")
+        request = urllib.request.Request(
+            semaphore_api_url,
+            data=payload,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=12) as response:
+                body = response.read().decode("utf-8", errors="ignore")
+                if 200 <= response.status < 300:
+                    return True, None
+                return False, f"Semaphore HTTP {response.status}: {body[:200]}"
+        except urllib.error.HTTPError as exc:
+            try:
+                err_body = exc.read().decode("utf-8", errors="ignore")
+            except Exception:
+                err_body = ""
+            return False, f"Semaphore HTTP {exc.code}: {err_body[:200]}"
+        except urllib.error.URLError as exc:
+            return False, f"Semaphore URL error: {str(exc)}"
+
     sms_api_url = os.environ.get("SMS_API_URL")
     sms_api_key = os.environ.get("SMS_API_KEY")
     phone = _normalize_phone_number(service.svc_contact_number)
@@ -349,10 +461,7 @@ def _send_dispatch_sms(service, message_text: str) -> tuple[bool, str | None]:
         return False, "SMS provider not configured"
     if not phone:
         return False, "Service contact number missing"
-    payload = json.dumps({
-        "to": phone,
-        "message": message_text,
-    }).encode("utf-8")
+    payload = json.dumps({"to": phone, "message": message_text}).encode("utf-8")
     request = urllib.request.Request(
         sms_api_url,
         data=payload,
@@ -418,13 +527,19 @@ def _notify_services_for_report(report: IncidentReport, report_count: int | None
 
     reports_in_cluster = report_count or _matching_report_count(report)
     services_login_url = os.environ.get("SERVICES_PORTAL_LOGIN_URL", "").strip()
+    location_link = ""
+    if report.lat is not None and report.lng is not None:
+        location_link = f"https://www.openstreetmap.org/?mlat={report.lat}&mlon={report.lng}#map=18/{report.lat}/{report.lng}"
 
     message = (
         f"Smartbash Dispatch Alert\n"
+        f"Service: {{service_name}}\n"
         f"Incident: {incident_type} ({reports_in_cluster} reports)\n"
         f"Barangay: {barangay or 'N/A'}\n"
         f"Location: {(report.location_text or '')[:120]}"
     )
+    if location_link:
+        message += f"\nLocation Link: {location_link}"
     if services_login_url:
         message += f"\nLogin: {services_login_url}"
 
@@ -434,7 +549,8 @@ def _notify_services_for_report(report: IncidentReport, report_count: int | None
     sms_failed_count = 0
     errors: list[str] = []
     for service in services:
-        sms_sent, sms_error = _send_dispatch_sms(service, message)
+        sms_message = message.replace("{service_name}", service.svc_name or "Service Team")
+        sms_sent, sms_error = _send_dispatch_sms(service, sms_message)
         ServiceDispatchNotification.objects.create(
             service=service,
             report_id=report.report_id,
@@ -561,7 +677,7 @@ def admin_approvals(request):
             ).order_by("-uploaded_at").first()
             if not proof:
                 return None, None
-            url = default_storage.url(proof.file_path)
+            url = _absolute_url(request, default_storage.url(proof.file_path))
             name = os.path.basename(proof.file_path)
             return url, name
         except Exception:
@@ -570,6 +686,7 @@ def admin_approvals(request):
     try:
         for svc in Service.objects.all():
             proof_url, proof_name = get_proof(svc.svc_email_address, "Services")
+            action_date = svc.svc_updated_on or svc.svc_added_on
             users.append(
                 {
                     "id": svc.svc_id,
@@ -580,6 +697,7 @@ def admin_approvals(request):
                     "status": _status_from_flags(svc.svc_is_active, svc.svc_is_deleted),
                     "role": "Services",
                     "proofUrl": proof_url,
+                    "actionDate": action_date.isoformat() if action_date else None,
                 }
             )
     except ProgrammingError:
@@ -588,6 +706,7 @@ def admin_approvals(request):
     try:
         for official in BrgyOfficial.objects.all():
             proof_url, proof_name = get_proof(official.official_email_address, "BrgyOfficials")
+            action_date = official.official_updated_on or official.official_added_on
             users.append(
                 {
                     "id": official.official_id,
@@ -600,6 +719,7 @@ def admin_approvals(request):
                     ),
                     "role": "Brgy. Officials",
                     "proofUrl": proof_url,
+                    "actionDate": action_date.isoformat() if action_date else None,
                 }
             )
     except ProgrammingError:
@@ -737,7 +857,7 @@ def officials_residents_pending(request):
     residents = []
     qs = Resident.objects.all()
     if barangay:
-        qs = qs.filter(res_location__icontains=barangay)
+        qs = [res for res in qs if _matches_official_barangay(barangay, res.res_location)]
 
     for res in qs:
         full_name = " ".join(
@@ -749,7 +869,7 @@ def officials_residents_pending(request):
         try:
             proof = ProofOfAuthority.objects.filter(resident=res).order_by("-uploaded_at").first()
             if proof:
-                proof_url = default_storage.url(proof.file_path)
+                proof_url = _absolute_url(request, default_storage.url(proof.file_path))
         except Exception:
             pass
         residents.append(
@@ -762,6 +882,7 @@ def officials_residents_pending(request):
                 "age": res.res_age,
                 "details": "Proof of Authority",
                 "status": _status_from_flags(res.res_is_active, res.res_is_deleted),
+                "actionDate": res.res_updated_on.isoformat() if res.res_updated_on else None,
                 "proofUrl": proof_url,
             }
         )
@@ -782,7 +903,7 @@ def officials_residents_approve(request):
         res = Resident.objects.get(res_id=res_id)
     except Resident.DoesNotExist:
         return Response({"message": "Resident not found"}, status=404)
-    if (official.official_barangay or "").strip() and (res.res_location or "").lower().find((official.official_barangay or "").strip().lower()) == -1:
+    if not _matches_official_barangay(official.official_barangay, res.res_location):
         return Response({"message": "Forbidden for this barangay"}, status=403)
 
     res.res_is_active = True
@@ -808,7 +929,7 @@ def officials_residents_remove(request):
         res = Resident.objects.get(res_id=res_id)
     except Resident.DoesNotExist:
         return Response({"message": "Resident not found"}, status=404)
-    if (official.official_barangay or "").strip() and (res.res_location or "").lower().find((official.official_barangay or "").strip().lower()) == -1:
+    if not _matches_official_barangay(official.official_barangay, res.res_location):
         return Response({"message": "Forbidden for this barangay"}, status=403)
 
     res.res_is_active = False
@@ -1103,6 +1224,7 @@ def residents_newsfeed_list(request):
         {
             "id": p.post_id,
             "author": p.author_name or p.author_email,
+            "authorEmail": p.author_email or "",
             "time": p.created_at.isoformat() if p.created_at else "",
             "postType": p.post_type,
             "incidentType": p.incident_type,
@@ -1111,6 +1233,10 @@ def residents_newsfeed_list(request):
             "image": p.image,
             "interested": email in (p.interested_by or []),
             "saved": email in (p.saved_by or []),
+            "comments": p.comments or [],
+            "commentCount": len(p.comments or []),
+            "shareCount": int(p.share_count or 0),
+            "canDelete": (p.author_email or "") == email,
         }
         for p in rows
     ]
@@ -1176,6 +1302,63 @@ def residents_newsfeed_delete(request):
     return Response({"message": "Deleted"}, status=200)
 
 
+@api_view(['POST'])
+def residents_newsfeed_comment(request):
+    resident = _get_resident_for_request(request)
+    if not resident:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    post_id = request.data.get("id")
+    content = (request.data.get("content") or "").strip()
+    if not post_id or not content:
+        return Response({"message": "Missing id/content"}, status=400)
+
+    try:
+        post = NewsFeedPost.objects.get(post_id=post_id, is_deleted=False)
+    except NewsFeedPost.DoesNotExist:
+        return Response({"message": "Post not found"}, status=404)
+
+    comments = post.comments or []
+    comments.append(
+        {
+            "id": int(timezone.now().timestamp() * 1000),
+            "author": _resident_full_name(resident) or resident.res_email_address,
+            "authorEmail": resident.res_email_address,
+            "content": content,
+            "createdAt": timezone.now().isoformat(),
+        }
+    )
+    post.comments = comments
+    post.save(update_fields=["comments", "updated_at"])
+    return Response({"message": "Comment added", "commentCount": len(comments)}, status=200)
+
+
+@api_view(['POST'])
+def residents_newsfeed_share(request):
+    resident = _get_resident_for_request(request)
+    if not resident:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    post_id = request.data.get("id")
+    if not post_id:
+        return Response({"message": "Missing id"}, status=400)
+
+    try:
+        post = NewsFeedPost.objects.get(post_id=post_id, is_deleted=False)
+    except NewsFeedPost.DoesNotExist:
+        return Response({"message": "Post not found"}, status=404)
+
+    email = resident.res_email_address
+    shared_by = post.shared_by or []
+    if email not in shared_by:
+        shared_by.append(email)
+        post.shared_by = shared_by
+        post.share_count = len(shared_by)
+        post.save(update_fields=["shared_by", "share_count", "updated_at"])
+
+    return Response({"message": "Shared", "shareCount": int(post.share_count or 0)}, status=200)
+
+
 @api_view(['GET'])
 def officials_dashboard(request):
     official = _get_official_for_request(request)
@@ -1222,7 +1405,7 @@ def officials_incidents_map(request):
     if not official or not official.official_is_active or official.official_is_deleted:
         return Response({"message": "Unauthorized"}, status=401)
 
-    rows = _official_incident_queryset(official)
+    rows = _official_incident_queryset(official).exclude(status="Completed")
 
     grouped: dict[tuple[str, str], dict] = {}
     for row in rows:
@@ -1338,6 +1521,29 @@ def services_dispatch_notifications(request):
     return Response({"dispatches": [_service_notification_payload(item) for item in rows]}, status=200)
 
 
+@api_view(['GET'])
+def officials_notifications(request):
+    official = _get_official_for_request(request)
+    if not official or not official.official_is_active or official.official_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    rows = _official_incident_queryset(official)
+    notifications = []
+    for row in rows[:20]:
+        notifications.append(
+            {
+                "id": row.report_id,
+                "title": f"{row.incident_type} report",
+                "message": f"{row.incident_type} at {(row.location_text or row.barangay or 'Unknown location')}",
+                "status": row.status,
+                "createdAt": row.created_at.isoformat() if row.created_at else "",
+            }
+        )
+
+    unread_count = rows.filter(status="Pending").count()
+    return Response({"unreadCount": unread_count, "notifications": notifications}, status=200)
+
+
 @api_view(['POST'])
 def ai_chat(request):
     prompt = request.data.get("message") or request.data.get("prompt") or ""
@@ -1417,6 +1623,151 @@ def login(request):
     }, status=status.HTTP_200_OK)
 
 
+@api_view(['GET'])
+def officials_profile(request):
+    official = _get_official_for_request(request)
+    if not official or official.official_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    return Response(
+        {
+            "profile": {
+                "name": official.official_name or "",
+                "barangay": official.official_barangay or "",
+                "location": official.official_barangay or "",
+                "email": official.official_email_address or "",
+                "contact": official.official_contact_number or "",
+                "position": official.official_position or "",
+            }
+        },
+        status=200,
+    )
+
+
+@api_view(['POST'])
+def officials_profile_update(request):
+    official = _get_official_for_request(request)
+    if not official or official.official_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    official.official_name = (request.data.get("name") or official.official_name or "").strip()
+    official.official_barangay = (request.data.get("barangay") or request.data.get("location") or official.official_barangay or "").strip()
+    official.official_contact_number = (request.data.get("contact") or official.official_contact_number or "").strip()
+    official.official_updated_on = timezone.now()
+    official.save(update_fields=["official_name", "official_barangay", "official_contact_number", "official_updated_on"])
+
+    return Response({"message": "Profile updated"}, status=200)
+
+
+@api_view(['POST'])
+def officials_password_update(request):
+    official = _get_official_for_request(request)
+    if not official or official.official_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    current_password = (request.data.get("currentPassword") or "").strip()
+    new_password = (request.data.get("newPassword") or "").strip()
+    if not current_password or not new_password:
+        return Response({"message": "Current and new password are required"}, status=400)
+
+    user = authenticate(username=official.official_email_address, password=current_password)
+    if not user:
+        return Response({"message": "Current password is incorrect"}, status=400)
+
+    user.set_password(new_password)
+    user.save(update_fields=["password"])
+    official.official_password = user.password
+    official.official_updated_on = timezone.now()
+    official.save(update_fields=["official_password", "official_updated_on"])
+
+    return Response({"message": "Password updated"}, status=200)
+
+
+@api_view(['GET'])
+def residents_profile(request):
+    resident = _get_resident_for_request(request)
+    if not resident or resident.res_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    return Response(
+        {
+            "profile": {
+                "firstName": resident.res_firstname or "",
+                "middleName": resident.res_middlename or "",
+                "lastName": resident.res_lastname or "",
+                "location": resident.res_location or "",
+                "age": resident.res_age,
+                "gender": resident.res_gender or "",
+                "email": resident.res_email_address or "",
+                "contact": resident.res_contact_number or "",
+            }
+        },
+        status=200,
+    )
+
+
+@api_view(['POST'])
+def residents_profile_update(request):
+    resident = _get_resident_for_request(request)
+    if not resident or resident.res_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    resident.res_firstname = (request.data.get("firstName") or resident.res_firstname or "").strip()
+    resident.res_middlename = (request.data.get("middleName") or resident.res_middlename or "").strip()
+    resident.res_lastname = (request.data.get("lastName") or resident.res_lastname or "").strip()
+    resident.res_location = (request.data.get("location") or resident.res_location or "").strip()
+
+    age_value = request.data.get("age")
+    if age_value not in (None, ""):
+        try:
+            resident.res_age = int(age_value)
+        except (TypeError, ValueError):
+            return Response({"message": "Invalid age"}, status=400)
+
+    gender_value = (request.data.get("gender") or resident.res_gender or "").strip().upper()
+    if gender_value in ("M", "F"):
+        resident.res_gender = gender_value
+
+    resident.res_contact_number = (request.data.get("contact") or resident.res_contact_number or "").strip()
+    resident.res_updated_on = timezone.now()
+    resident.save(update_fields=[
+        "res_firstname",
+        "res_middlename",
+        "res_lastname",
+        "res_location",
+        "res_age",
+        "res_gender",
+        "res_contact_number",
+        "res_updated_on",
+    ])
+
+    return Response({"message": "Profile updated"}, status=200)
+
+
+@api_view(['POST'])
+def residents_password_update(request):
+    resident = _get_resident_for_request(request)
+    if not resident or resident.res_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    current_password = (request.data.get("currentPassword") or "").strip()
+    new_password = (request.data.get("newPassword") or "").strip()
+    if not current_password or not new_password:
+        return Response({"message": "Current and new password are required"}, status=400)
+
+    user = authenticate(username=resident.res_email_address, password=current_password)
+    if not user:
+        return Response({"message": "Current password is incorrect"}, status=400)
+
+    user.set_password(new_password)
+    user.save(update_fields=["password"])
+    resident.res_password = user.password
+    resident.res_updated_on = timezone.now()
+    resident.save(update_fields=["res_password", "res_updated_on"])
+
+    return Response({"message": "Password updated"}, status=200)
+
+
 @api_view(['POST'])
 def token_refresh(request):
     refresh = request.data.get('refresh')
@@ -1433,3 +1784,5 @@ def token_refresh(request):
             {"message": "Invalid or expired refresh token"},
             status=401
         )
+
+
