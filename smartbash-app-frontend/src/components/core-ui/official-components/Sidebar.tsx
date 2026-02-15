@@ -11,6 +11,9 @@ import {
   Briefcase,
   Users,
   PanelLeft,
+  Settings,
+  Menu,
+  LogOut,
 } from "lucide-react";
 
 export default function Sidebar() {
@@ -25,22 +28,21 @@ export default function Sidebar() {
     { name: "AI Assistant", icon: Bot, href: "/dashboards/officials/ai-assistant" },
     { name: "Services", icon: Briefcase, href: "/dashboards/officials/services" },
     { name: "Residents Approval", icon: Users, href: "/dashboards/officials/residents-approval" },
+    { name: "Settings", icon: Settings, href: "/dashboards/officials/settings" },
   ];
 
   return (
     <>
-      {/* MOBILE OVERLAY */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/40 z-40 md:hidden"
+          className="fixed inset-0 bg-black/40 z-[1900] md:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* SIDEBAR */}
       <aside
         className={`
-          fixed md:relative z-50
+          fixed md:relative z-[2000]
           h-screen bg-white border-r px-5 py-8 flex flex-col
           transition-all duration-300
           ${collapsed ? "md:w-20 w-20" : "md:w-64 w-64"}
@@ -48,39 +50,22 @@ export default function Sidebar() {
           md:translate-x-0
         `}
       >
-        {/* TOP LOGO + TOGGLE */}
         <div className="mb-20 flex items-center justify-between">
-          {!collapsed && (
-            <img
-              src="/logo.png"
-              alt="Logo"
-              className="h-14 w-auto object-contain"
-            />
-          )}
+          {!collapsed && <img src="/logo.png" alt="Logo" className="h-14 w-auto object-contain" />}
 
           <button
-            onClick={() =>
-              window.innerWidth < 768
-                ? setMobileOpen(false)
-                : setCollapsed(!collapsed)
-            }
+            onClick={() => (window.innerWidth < 768 ? setMobileOpen(false) : setCollapsed(!collapsed))}
             className={`h-9 w-9 border rounded-xl flex items-center justify-center hover:bg-gray-100 transition ${
               collapsed ? "mx-auto" : ""
             }`}
           >
-            <PanelLeft
-              className={`h-5 w-5 transition-transform ${
-                collapsed ? "rotate-180" : ""
-              }`}
-            />
+            <PanelLeft className={`h-5 w-5 transition-transform ${collapsed ? "rotate-180" : ""}`} />
           </button>
         </div>
 
-        {/* MENU */}
         <nav className="space-y-8 text-base text-gray-700 flex-1">
           {menu.map((item) => {
             const active = pathname === item.href;
-
             return (
               <Link key={item.name} href={item.href} onClick={() => setMobileOpen(false)}>
                 <div
@@ -90,18 +75,14 @@ export default function Sidebar() {
                 >
                   <item.icon
                     className={`h-6 w-6 min-h-6 min-w-6 transition ${
-                      active
-                        ? "text-green-700"
-                        : "text-gray-500 group-hover:text-gray-900"
+                      active ? "text-green-700" : "text-gray-500 group-hover:text-gray-900"
                     }`}
                   />
 
                   {!collapsed && (
                     <span
                       className={`font-medium ${
-                        active
-                          ? "text-green-700"
-                          : "text-gray-600 group-hover:text-gray-900"
+                        active ? "text-green-700" : "text-gray-600 group-hover:text-gray-900"
                       }`}
                     >
                       {item.name}
@@ -113,20 +94,18 @@ export default function Sidebar() {
           })}
         </nav>
 
-        {/* LOGOUT */}
         <Link href="/" className="block mt-auto">
-          <button className="w-full border rounded-xl py-3 text-base text-gray-600 hover:bg-gray-100 transition">
-            {!collapsed ? "Logout" : "⎋"}
+          <button className="w-full border rounded-xl py-3 text-base text-gray-600 hover:bg-gray-100 transition flex items-center justify-center gap-2">
+            {collapsed ? <LogOut className="h-4 w-4" /> : "Logout"}
           </button>
         </Link>
       </aside>
 
-      {/* MOBILE OPEN BUTTON */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed top-4 left-4 z-30 md:hidden bg-white border rounded-xl h-10 w-10 flex items-center justify-center"
+        className="fixed top-4 left-4 z-[1800] md:hidden bg-white border rounded-xl h-10 w-10 flex items-center justify-center"
       >
-        ☰
+        <Menu className="h-5 w-5" />
       </button>
     </>
   );

@@ -14,9 +14,10 @@ import {
 interface UsersTableProps {
   users: User[];
   onStatusChange: (id: number, status: Status, role?: User["role"]) => void;
+  showHistory?: boolean;
 }
 
-export default function UsersTable({ users, onStatusChange }: UsersTableProps) {
+export default function UsersTable({ users, onStatusChange, showHistory = false }: UsersTableProps) {
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
       <div className="overflow-x-auto">
@@ -35,7 +36,12 @@ export default function UsersTable({ users, onStatusChange }: UsersTableProps) {
 
           <TableBody>
             {users.map((user) => (
-              <UserRow key={user.id} user={user} onStatusChange={onStatusChange} />
+              <UserRow
+                key={user.key || `${user.role}-${user.id}`}
+                user={user}
+                onStatusChange={onStatusChange}
+                showHistory={showHistory}
+              />
             ))}
           </TableBody>
         </Table>

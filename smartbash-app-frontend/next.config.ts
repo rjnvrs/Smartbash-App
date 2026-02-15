@@ -5,7 +5,9 @@ const nextConfig: NextConfig = {
     'http://localhost:3000',
     'http://192.168.100.10:3000',
     'http://192.168.100.5:3000',
+    'http://192.168.100.6:3000',
   ],
 };
 
 export default nextConfig;
+

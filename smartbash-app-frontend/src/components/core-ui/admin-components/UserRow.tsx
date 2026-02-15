@@ -2,37 +2,52 @@
 
 import type { User, Status } from "./types";
 
+
 interface UserRowProps {
   user: User;
   onStatusChange: (id: number, status: Status, role?: User["role"]) => void;
+  showHistory?: boolean;
 }
 
-export default function UserRow({ user, onStatusChange }: UserRowProps) {
+
+function formatActionDate(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+export default function UserRow({ user, onStatusChange, showHistory = false }: UserRowProps) {
+  const handleUpdateStatus = (newStatus: Status) => {
+    onStatusChange(user.id, newStatus, user.role);
+  };
+
+
   return (
     <tr className="hover:bg-gray-50 border-b">
       <td className="px-4 py-3.5">{user.fullName}</td>
       <td className="px-4 py-3.5 text-sm">{user.email}</td>
       <td className="px-4 py-3.5">{user.contact}</td>
       <td className="px-4 py-3.5">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <span className="truncate max-w-[150px]">{user.details}</span>
-          {user.proofUrl ? (
+          {user.proofUrl && (
             <a
               href={user.proofUrl}
               target="_blank"
               rel="noreferrer"
               className="text-blue-600 hover:text-blue-800 hover:underline text-sm whitespace-nowrap"
             >
-              View proof
+              View
             </a>
-          ) : (
-            <span className="text-xs text-gray-400 whitespace-nowrap">No file</span>
           )}
         </div>
       </td>
-
       <td className="px-4 py-3.5">{user.role}</td>
-
       <td className="px-4 py-3.5">
         <span
           className={`font-semibold text-sm px-2 py-1 rounded-full ${
@@ -46,33 +61,34 @@ export default function UserRow({ user, onStatusChange }: UserRowProps) {
           {user.status}
         </span>
       </td>
-
-      <td className="px-4 py-3.5">
-        <div className="flex justify-center gap-2">
-          {user.status === "Pending" ? (
-            <>
-              <button
-                onClick={() => onStatusChange(user.id, "Approved", user.role)}
-                className="bg-green-500 text-white px-3 py-1.5 rounded-md text-sm hover:bg-green-600 transition-colors"
-              >
-                Approve
-              </button>
-              <button
-                onClick={() => onStatusChange(user.id, "Removed", user.role)}
-                className="bg-red-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-red-700 transition-colors"
-              >
-                Remove
-              </button>
-            </>
-          ) : (
+      <td className="px-4 py-3.5 text-center">
+        {showHistory ? (
+          <p className="text-sm text-gray-500 font-medium">
+            {user.actionDate ? `${user.status} on ${formatActionDate(user.actionDate)}` : user.status}
+          </p>
+        ) : user.status === "Pending" ? (
+          <div className="flex justify-center gap-2">
             <button
-              onClick={() => onStatusChange(user.id, "Pending", user.role)}
-              className="bg-gray-800 text-white px-3 py-1.5 rounded-md text-sm hover:bg-black transition-colors"
+              onClick={() => handleUpdateStatus("Approved")}
+              className="bg-green-500 text-white px-3 py-1.5 rounded-md text-sm hover:bg-green-600 transition-colors"
             >
-              Cancel
+              Approve
             </button>
-          )}
-        </div>
+            <button
+              onClick={() => handleUpdateStatus("Removed")}
+              className="bg-red-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-red-700 transition-colors"
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => handleUpdateStatus("Pending")}
+            className="bg-slate-800 text-white px-3 py-1.5 rounded-md text-sm hover:bg-slate-900 transition-colors"
+          >
+            Cancel
+          </button>
+        )}
       </td>
     </tr>
   );

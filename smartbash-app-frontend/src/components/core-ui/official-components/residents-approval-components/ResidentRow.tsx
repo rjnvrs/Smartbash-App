@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { TableRow, TableCell } from "@/components/ui/table";
 
 export type ResidentStatus = "Pending" | "Approved" | "Removed";
@@ -14,6 +13,7 @@ export interface ResidentData {
   age: number;
   details: string;
   status: ResidentStatus;
+  actionDate?: string;
   proofUrl?: string;
 }
 
@@ -23,26 +23,34 @@ interface ResidentRowProps {
   mobile?: boolean;
 }
 
+function formatActionDate(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default function ResidentRow({
   data,
   onUpdateStatus,
   mobile = false,
 }: ResidentRowProps) {
-  const [status, setStatus] = useState(data.status);
-
   const statusColor =
-    status === "Pending"
+    data.status === "Pending"
       ? "text-orange-500"
-      : status === "Approved"
-      ? "text-green-600"
-      : "text-gray-400";
+      : data.status === "Approved"
+        ? "text-green-600"
+        : "text-gray-500";
 
-  const update = (newStatus: ResidentStatus) => {
-    setStatus(newStatus);
-    onUpdateStatus?.(data.id, newStatus);
-  };
+  const actionText =
+    data.status !== "Pending" && data.actionDate
+      ? `${data.status} on ${formatActionDate(data.actionDate)}`
+      : "";
 
-  /* ✅ MOBILE CARD VIEW */
   if (mobile) {
     return (
       <div className="border rounded-xl p-4 space-y-2 text-sm">
@@ -52,8 +60,10 @@ export default function ResidentRow({
         </div>
 
         <div className="flex justify-between">
-          <span>📞 {data.contact}</span>
-          <span>{data.gender}, {data.age}</span>
+          <span>Contact: {data.contact}</span>
+          <span>
+            {data.gender}, {data.age}
+          </span>
         </div>
 
         <p className="text-gray-600">
@@ -70,44 +80,40 @@ export default function ResidentRow({
           )}
         </p>
 
-        <p className={`font-medium ${statusColor}`}>{status}</p>
+        <p className={`font-medium ${statusColor}`}>{data.status}</p>
 
-        <div className="flex gap-2 pt-2">
-          {status === "Pending" ? (
-            <>
+        <div className="pt-2">
+          {data.status === "Pending" ? (
+            <div className="flex gap-2">
               <button
-                onClick={() => update("Approved")}
+                onClick={() => onUpdateStatus?.(data.id, "Approved")}
                 className="flex-1 py-1 rounded bg-green-500 text-white"
               >
                 Approve
               </button>
               <button
-                onClick={() => update("Removed")}
+                onClick={() => onUpdateStatus?.(data.id, "Removed")}
                 className="flex-1 py-1 rounded bg-red-600 text-white"
               >
                 Remove
               </button>
-            </>
+            </div>
           ) : (
-            <button
-              onClick={() => update("Pending")}
-              className="w-full py-1 rounded bg-black text-white"
-            >
-              Cancel
-            </button>
+            <p className="text-sm text-gray-500 font-medium">{actionText}</p>
           )}
         </div>
       </div>
     );
   }
 
-  /* ✅ DESKTOP TABLE ROW (UNCHANGED LOOK) */
   return (
     <TableRow>
       <TableCell>{data.name}</TableCell>
       <TableCell className="break-all">{data.email}</TableCell>
       <TableCell>{data.contact}</TableCell>
-      <TableCell>{data.gender}, {data.age}</TableCell>
+      <TableCell>
+        {data.gender}, {data.age}
+      </TableCell>
       <TableCell>
         {data.details}{" "}
         {data.proofUrl && (
@@ -121,33 +127,26 @@ export default function ResidentRow({
           </a>
         )}
       </TableCell>
-      <TableCell className={`font-medium ${statusColor}`}>{status}</TableCell>
+      <TableCell className={`font-medium ${statusColor}`}>{data.status}</TableCell>
       <TableCell>
-        <div className="flex gap-2">
-          {status === "Pending" ? (
-            <>
-              <button
-                onClick={() => update("Approved")}
-                className="px-4 py-1 rounded-full bg-green-500 text-white text-xs"
-              >
-                Approve
-              </button>
-              <button
-                onClick={() => update("Removed")}
-                className="px-4 py-1 rounded-full bg-red-600 text-white text-xs"
-              >
-                Remove
-              </button>
-            </>
-          ) : (
+        {data.status === "Pending" ? (
+          <div className="flex gap-2">
             <button
-              onClick={() => update("Pending")}
-              className="px-6 py-1 rounded-full bg-black text-white text-xs"
+              onClick={() => onUpdateStatus?.(data.id, "Approved")}
+              className="px-4 py-1 rounded-full bg-green-500 text-white text-xs"
             >
-              Cancel
+              Approve
             </button>
-          )}
-        </div>
+            <button
+              onClick={() => onUpdateStatus?.(data.id, "Removed")}
+              className="px-4 py-1 rounded-full bg-red-600 text-white text-xs"
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500 font-medium">{actionText}</p>
+        )}
       </TableCell>
     </TableRow>
   );

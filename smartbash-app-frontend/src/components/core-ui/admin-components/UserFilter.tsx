@@ -13,6 +13,7 @@ interface UserFiltersProps {
   setSearch: (val: string) => void;
   status: string;
   setStatus: (val: string) => void;
+  showHistory?: boolean;
 }
 
 const tabs: Tab[] = ["All", "Brgy. Officials", "Services"];
@@ -24,6 +25,7 @@ export default function UserFilters({
   setSearch,
   status,
   setStatus,
+  showHistory = false,
 }: UserFiltersProps) {
  return (
   <div className="mb-4">
@@ -53,7 +55,7 @@ export default function UserFilters({
         <StatusFilter
           selectedStatus={status}
           onStatusChange={setStatus}
-          options={["All Status", "Pending", "Approved", "Removed"]}
+          options={showHistory ? ["All Status", "Approved", "Removed"] : ["All Status"]}
         />
       </div>
     </div>

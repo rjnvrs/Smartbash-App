@@ -83,7 +83,7 @@ export default function SignInForm() {
           window.location.href = "/dashboards/residents";
           break;
         case "Services":
-          window.location.href = "/dashboards/services";
+          window.location.href = "/dashboards/services/map";
           break;
         case "BrgyOfficials":
           window.location.href = "/dashboards/officials";

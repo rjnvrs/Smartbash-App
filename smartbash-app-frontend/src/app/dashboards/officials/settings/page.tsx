@@ -1,0 +1,292 @@
+"use client";
+
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api";
+
+type OfficialProfileForm = {
+  name: string;
+  barangay: string;
+  location: string;
+  email: string;
+  contact: string;
+};
+
+export default function SettingsPage() {
+  const router = useRouter();
+
+  const [activeTab, setActiveTab] = useState("info");
+  const [isLoading, setIsLoading] = useState(true);
+  const [profileImage, setProfileImage] = useState<string>("");
+
+  const [formData, setFormData] = useState<OfficialProfileForm>({
+    name: "",
+    barangay: "",
+    location: "",
+    email: "",
+    contact: "",
+  });
+
+  const [passwordData, setPasswordData] = useState({
+    current: "",
+    newPass: "",
+    confirm: "",
+  });
+
+  const profileImageKey = useMemo(() => {
+    const email = (formData.email || "").trim().toLowerCase();
+    return email ? `officialProfileImage:${email}` : "officialProfileImage";
+  }, [formData.email]);
+
+  const fallbackAvatar = useMemo(() => {
+    const label = (formData.name || formData.email || "Official").trim();
+    return `https://ui-avatars.com/api/?name=${encodeURIComponent(label)}&background=E5E7EB&color=111827&size=256`;
+  }, [formData.name, formData.email]);
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      setIsLoading(true);
+      try {
+        const res = await apiFetch("/auth/officials/profile/", { method: "GET" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || "Failed to load profile");
+        const profile = data?.profile || {};
+        setFormData({
+          name: profile.name || "",
+          barangay: profile.barangay || "",
+          location: profile.location || profile.barangay || "",
+          email: profile.email || "",
+          contact: profile.contact || "",
+        });
+        const email = (profile.email || "").trim().toLowerCase();
+        const key = email ? `officialProfileImage:${email}` : "officialProfileImage";
+        const saved = localStorage.getItem(key);
+        setProfileImage(saved || "");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to load profile";
+        window.alert(message);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadProfile();
+  }, []);
+
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handlePasswordChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setPasswordData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const image = reader.result as string;
+      setProfileImage(image);
+      localStorage.setItem(profileImageKey, image);
+      window.dispatchEvent(new Event("profileUpdated"));
+      window.alert("Profile image updated!");
+    };
+
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const handleSave = async () => {
+    try {
+      const res = await apiFetch("/auth/officials/profile/update/", {
+        method: "POST",
+        body: JSON.stringify({
+          name: formData.name,
+          barangay: formData.barangay,
+          location: formData.location,
+          contact: formData.contact,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Failed to save profile");
+      window.dispatchEvent(new Event("profileUpdated"));
+      window.alert("Changes saved successfully!");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to save profile";
+      window.alert(message);
+    }
+  };
+
+  const handlePasswordSave = async () => {
+    if (passwordData.newPass !== passwordData.confirm) {
+      window.alert("Passwords do not match!");
+      return;
+    }
+    try {
+      const res = await apiFetch("/auth/officials/profile/password/", {
+        method: "POST",
+        body: JSON.stringify({
+          currentPassword: passwordData.current,
+          newPassword: passwordData.newPass,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.message || "Failed to update password");
+      setPasswordData({ current: "", newPass: "", confirm: "" });
+      window.alert("Password updated successfully!");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to update password";
+      window.alert(message);
+    }
+  };
+
+  const handleDiscard = () => {
+    router.refresh();
+  };
+
+  return (
+    <div className="bg-gray-100 min-h-screen flex items-center justify-center py-8 px-6">
+      <div className="w-full max-w-6xl flex gap-6 min-h-[700px]">
+        <div className="w-80 bg-white rounded-2xl shadow-md p-8 flex flex-col items-center">
+          <button
+            onClick={() => router.push("/dashboards/officials")}
+            className="mb-6 h-9 w-9 flex items-center justify-center rounded-full border hover:bg-gray-100 transition self-start"
+          >
+            ←
+          </button>
+
+          <h2 className="text-2xl font-semibold mb-8 self-start">Settings</h2>
+
+          <div className="relative w-28 aspect-square rounded-full overflow-hidden bg-gray-200 border-4 border-white shadow-md mb-4">
+            <img src={profileImage || fallbackAvatar} alt="Profile" className="absolute inset-0 w-full h-full object-cover" />
+          </div>
+
+          <p className="font-medium text-lg mb-8 text-center w-full truncate">{formData.name || "Official"}</p>
+
+          <div className="w-full space-y-3">
+            <button
+              onClick={() => setActiveTab("info")}
+              className={`w-full py-3 rounded-xl text-left px-6 transition ${
+                activeTab === "info" ? "bg-gray-200 font-medium" : "hover:bg-gray-100"
+              }`}
+            >
+              Brgy Information
+            </button>
+
+            <button
+              onClick={() => setActiveTab("password")}
+              className={`w-full py-3 rounded-xl text-left px-6 transition ${
+                activeTab === "password" ? "bg-gray-200 font-medium" : "hover:bg-gray-100"
+              }`}
+            >
+              Password
+            </button>
+
+            <button
+              onClick={() => router.push("/")}
+              className="w-full py-3 rounded-xl text-left px-6 hover:bg-red-50 text-red-600"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 bg-white rounded-2xl shadow-md p-12 min-h-[700px]">
+          <div className={activeTab === "info" ? "block" : "hidden"}>
+            <h2 className="text-2xl font-semibold mb-12">Barangay Information</h2>
+
+            {isLoading ? (
+              <p className="text-gray-500">Loading profile...</p>
+            ) : (
+              <>
+                <div className="flex flex-col items-center mb-14">
+                  <div className="relative w-44 aspect-square rounded-full overflow-hidden bg-gray-200 border-4 border-white shadow-lg group">
+                    <img src={profileImage || fallbackAvatar} alt="Profile" className="absolute inset-0 w-full h-full object-cover" />
+
+                    <label className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition cursor-pointer">
+                      <span className="bg-green-600 text-white text-sm px-4 py-2 rounded-full shadow-md">Upload</span>
+                      <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                    </label>
+                  </div>
+
+                  <p className="mt-6 text-xl font-medium">{formData.name || "Official"}</p>
+                  <p className="text-gray-500 text-sm">{formData.email}</p>
+                </div>
+
+                <div className="max-w-4xl mx-auto grid grid-cols-2 gap-10 mb-16">
+                  <div>
+                    <label className="text-sm text-gray-600">Name</label>
+                    <input name="name" value={formData.name} onChange={handleChange} className="w-full border rounded-xl px-4 py-3 mt-2" />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-gray-600">Barangay</label>
+                    <input name="barangay" value={formData.barangay} onChange={handleChange} className="w-full border rounded-xl px-4 py-3 mt-2" />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-gray-600">Email</label>
+                    <input name="email" value={formData.email} readOnly className="w-full border rounded-xl px-4 py-3 mt-2 bg-gray-50" />
+                  </div>
+
+                  <div>
+                    <label className="text-sm text-gray-600">Contact No.</label>
+                    <input name="contact" value={formData.contact} onChange={handleChange} className="w-full border rounded-xl px-4 py-3 mt-2" />
+                  </div>
+                </div>
+
+                <div className="flex justify-center gap-8 mt-20">
+                  <button onClick={handleDiscard} className="px-10 py-3 bg-gray-200 rounded-xl hover:bg-gray-300 transition">
+                    Discard Changes
+                  </button>
+
+                  <button onClick={handleSave} className="px-10 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition">
+                    Save Changes
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className={activeTab === "password" ? "block" : "hidden"}>
+            <h2 className="text-2xl font-semibold mb-12">Change Password</h2>
+
+            <div className="w-full max-w-2xl mx-auto grid gap-6">
+              <input
+                type="password"
+                name="current"
+                placeholder="Current Password"
+                value={passwordData.current}
+                onChange={handlePasswordChange}
+                className="border rounded-xl px-4 py-3"
+              />
+
+              <input
+                type="password"
+                name="newPass"
+                placeholder="New Password"
+                value={passwordData.newPass}
+                onChange={handlePasswordChange}
+                className="border rounded-xl px-4 py-3"
+              />
+
+              <input
+                type="password"
+                name="confirm"
+                placeholder="Confirm New Password"
+                value={passwordData.confirm}
+                onChange={handlePasswordChange}
+                className="border rounded-xl px-4 py-3"
+              />
+
+              <button onClick={handlePasswordSave} className="bg-green-600 text-white py-3 rounded-xl hover:bg-green-700 transition mt-6">
+                Update Password
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

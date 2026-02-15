@@ -7,16 +7,13 @@ type IncidentType = "fire" | "flood";
 type UrgencyLevel = "Low" | "Moderate" | "High" | "Critical";
 
 interface IncidentCardProps {
-  id: number;
   type: IncidentType;
   urgency: UrgencyLevel;
   reports: number;
   location: string;
-  onDispatch: (id: number) => void;
-  onClose: (id: number) => void;
 }
 
-export function IncidentCard({ id, type, urgency, reports, location, onDispatch, onClose }: IncidentCardProps) {
+export function IncidentCard({ type, urgency, reports, location }: IncidentCardProps) {
   // Border color based on type
   const borderColor = type === "fire" ? "border-red-500" : "border-blue-500";
   const icon = type === "fire" ? <Flame className="h-5 w-5 text-red-500" /> 
@@ -56,18 +53,12 @@ export function IncidentCard({ id, type, urgency, reports, location, onDispatch,
           Location: {location}
         </div>
 
-        <button
-          onClick={() => onDispatch(id)}
-          className="w-full bg-black text-white py-2.5 rounded-full text-sm font-medium hover:bg-gray-800 mb-2 flex items-center justify-center gap-2"
-        >
+        <button className="w-full bg-black text-white py-2.5 rounded-full text-sm font-medium hover:bg-gray-800 mb-2 flex items-center justify-center gap-2">
           <PlaneTakeoff className="h-4 w-4" />
           Dispatch Services
         </button>
 
-        <button
-          onClick={() => onClose(id)}
-          className="w-full text-gray-600 text-sm hover:text-gray-800"
-        >
+        <button className="w-full text-gray-600 text-sm hover:text-gray-800">
           Close Details
         </button>
       </CardContent>

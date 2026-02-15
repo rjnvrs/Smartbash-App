@@ -31,9 +31,7 @@ export function MapSearchBar({
       />
       <select
         value={selectedUrgency}
-        onChange={(e) =>
-          onUrgencyChange(e.target.value as MapSearchBarProps["selectedUrgency"])
-        }
+        onChange={(e) => onUrgencyChange(e.target.value as any)}
         className="bg-transparent outline-none text-sm sm:text-base"
       >
         {options.map((o) => (

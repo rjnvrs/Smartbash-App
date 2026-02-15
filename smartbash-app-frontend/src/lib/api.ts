@@ -1,5 +1,10 @@
+const browserApiBase =
+  typeof window !== "undefined"
+    ? `${window.location.protocol}//${window.location.hostname}:8000/api`
+    : null;
+
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? "http://192.168.100.5:8000/api";
+  process.env.NEXT_PUBLIC_API_BASE ?? browserApiBase ?? "http://127.0.0.1:8000/api";
 
 export async function parseJsonSafe(res: Response) {
   const text = await res.text();

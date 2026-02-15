@@ -1,15 +1,22 @@
 "use client";
 
-import { useState } from "react";
+interface PaginationProps {
+  currentPage: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}
 
-export default function Pagination() {
-  const totalPages = 12;
-  const [currentPage, setCurrentPage] = useState(1);
-
+export default function Pagination({
+  currentPage,
+  totalPages,
+  onPageChange,
+}: PaginationProps) {
   const goToPage = (page: number) => {
     if (page < 1 || page > totalPages) return;
-    setCurrentPage(page);
+    onPageChange(page);
   };
+
+  const pageNumbers = Array.from({ length: totalPages }, (_, i) => i + 1).slice(0, 6);
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between pt-4 border-t border-gray-200">
@@ -35,7 +42,7 @@ export default function Pagination() {
 
         {/* Page numbers (desktop only) */}
         <div className="hidden sm:flex items-center gap-2">
-          {[1, 2, 3].map((page) => (
+          {pageNumbers.map((page) => (
             <button
               key={page}
               onClick={() => goToPage(page)}

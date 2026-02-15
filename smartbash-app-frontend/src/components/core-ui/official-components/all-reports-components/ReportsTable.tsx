@@ -19,10 +19,19 @@ interface ReportsTableProps {
   selectedStatus: "All Status" | Report["status"];
   selectedCategory: "All Categories" | Report["category"];
   searchQuery: string;
+  hideCompleted?: boolean;
+  showHistory?: boolean;
   refreshKey?: number;
 }
 
-export default function ReportsTable({ selectedStatus, selectedCategory, searchQuery, refreshKey = 0 }: ReportsTableProps) {
+export default function ReportsTable({
+  selectedStatus,
+  selectedCategory,
+  searchQuery,
+  hideCompleted = false,
+  showHistory = false,
+  refreshKey = 0,
+}: ReportsTableProps) {
   const [reports, setReports] = useState<Report[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -36,37 +45,39 @@ export default function ReportsTable({ selectedStatus, selectedCategory, searchQ
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to load reports");
 
-      const normalized: Report[] = (data.reports || []).map((r: {
-        id: number;
-        category: string;
-        description: string;
-        location: string;
-        date: string;
-        status: Report["status"];
-        images?: string[];
-        residentName?: string;
-        residentEmail?: string;
-      }) => {
-        const isFire = (r.category || "").toLowerCase() === "fire";
-        const statusColor =
-          r.status === "Pending"
-            ? "bg-red-100 text-red-800"
-            : r.status === "In Progress"
-            ? "bg-yellow-100 text-yellow-800"
-            : "bg-green-100 text-green-800";
-        return {
-          id: r.id,
-          category: isFire ? "Fire" : "Flood",
-          description: r.description || "",
-          location: r.location || "",
-          date: r.date ? new Date(r.date).toLocaleString() : "",
-          status: r.status,
-          statusColor,
-          images: r.images || [],
-          residentName: r.residentName || "",
-          residentEmail: r.residentEmail || "",
-        };
-      });
+      const normalized: Report[] = (data.reports || []).map(
+        (r: {
+          id: number;
+          category: string;
+          description: string;
+          location: string;
+          date: string;
+          status: Report["status"];
+          images?: string[];
+          residentName?: string;
+          residentEmail?: string;
+        }) => {
+          const isFire = (r.category || "").toLowerCase() === "fire";
+          const statusColor =
+            r.status === "Pending"
+              ? "bg-red-100 text-red-800"
+              : r.status === "In Progress"
+                ? "bg-yellow-100 text-yellow-800"
+                : "bg-green-100 text-green-800";
+          return {
+            id: r.id,
+            category: isFire ? "Fire" : "Flood",
+            description: r.description || "",
+            location: r.location || "",
+            date: r.date ? new Date(r.date).toLocaleString() : "",
+            status: r.status,
+            statusColor,
+            images: r.images || [],
+            residentName: r.residentName || "",
+            residentEmail: r.residentEmail || "",
+          };
+        }
+      );
 
       setReports(normalized);
     } catch (err: unknown) {
@@ -89,36 +100,37 @@ export default function ReportsTable({ selectedStatus, selectedCategory, searchQ
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to dispatch");
-      loadReports();
+      await loadReports();
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to dispatch";
       setError(message);
     }
   };
 
-  const handleDetails = (report: Report) => {
-    setSelectedReport(report);
-  };
+  const filteredReports = useMemo(
+    () =>
+      reports.filter((report) => {
+        const statusMatch = selectedStatus === "All Status" || report.status === selectedStatus;
+        const categoryMatch =
+          selectedCategory === "All Categories" || report.category === selectedCategory;
+        const searchMatch =
+          !searchQuery ||
+          report.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          report.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          report.category.toLowerCase().includes(searchQuery.toLowerCase());
 
-  const filteredReports = useMemo(() => reports.filter((report) => {
-    const statusMatch =
-      selectedStatus === "All Status" || report.status === selectedStatus;
+        if (showHistory) {
+          return statusMatch && categoryMatch && searchMatch && report.status === "Completed";
+        }
 
-    const categoryMatch =
-      selectedCategory === "All Categories" || report.category === selectedCategory;
-
-    const searchMatch =
-      !searchQuery ||
-      report.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      report.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      report.category.toLowerCase().includes(searchQuery.toLowerCase());
-
-    return statusMatch && categoryMatch && searchMatch;
-  }), [reports, selectedStatus, selectedCategory, searchQuery]);
+        const hideCompletedMatch = hideCompleted ? report.status !== "Completed" : true;
+        return statusMatch && categoryMatch && searchMatch && hideCompletedMatch;
+      }),
+    [reports, selectedStatus, selectedCategory, searchQuery, hideCompleted, showHistory]
+  );
 
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
-      {/* Desktop Table View */}
       <div className="hidden md:block overflow-x-auto">
         <Table className="min-w-full divide-y divide-gray-200">
           <TableHeader>
@@ -149,7 +161,13 @@ export default function ReportsTable({ selectedStatus, selectedCategory, searchQ
             )}
             {!isLoading && !error && filteredReports.length > 0 ? (
               filteredReports.map((report) => (
-                <ReportRow key={report.id} report={report} onDispatch={handleDispatch} onDetails={handleDetails} />
+                <ReportRow
+                  key={report.id}
+                  report={report}
+                  showHistory={showHistory}
+                  onDispatch={handleDispatch}
+                  onDetails={setSelectedReport}
+                />
               ))
             ) : (
               <TableRow>
@@ -162,56 +180,41 @@ export default function ReportsTable({ selectedStatus, selectedCategory, searchQ
         </Table>
       </div>
 
-      {/* Mobile Card View */}
       <div className="md:hidden p-3 space-y-3">
         {filteredReports.length > 0 ? (
           filteredReports.map((report) => (
             <div key={report.id} className="bg-white border rounded-xl p-4 shadow-sm">
               <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center">
-                    {report.category === "Fire" ? (
-                      <span className="text-red-600 font-bold">🔥</span>
-                    ) : (
-                      <span className="text-blue-600 font-bold">🌊</span>
-                    )}
-                  </div>
-                  <div className="font-medium">{report.category}</div>
-                </div>
+                <div className="font-medium">{report.category}</div>
                 <span className={`px-2 py-1 text-xs rounded-full ${report.statusColor}`}>
                   {report.status}
                 </span>
               </div>
-
-              <div className="text-sm text-gray-800 line-clamp-2 mb-2">
-                {report.description}
-              </div>
-
-              <div className="text-xs text-gray-500 mb-2">
-                {report.location}
-              </div>
-
-                <div className="flex justify-between items-center">
-                  <div className="text-xs text-gray-500">{report.date}</div>
-                  <div className="flex gap-2">
+              <div className="text-sm text-gray-800 line-clamp-2 mb-2">{report.description}</div>
+              <div className="text-xs text-gray-500 mb-2">{report.location}</div>
+              <div className="flex justify-between items-center">
+                <div className="text-xs text-gray-500">{report.date}</div>
+                <div className="flex gap-2">
+                  {!showHistory && report.status !== "Completed" && (
                     <button
                       onClick={() => handleDispatch(report.id)}
                       className="bg-black text-white text-xs font-medium px-3 py-1 rounded-full"
                     >
                       Dispatch
                     </button>
-                    <button
-                      onClick={() => handleDetails(report)}
-                      className="bg-gray-100 text-gray-800 text-xs font-medium px-3 py-1 rounded-full border"
-                    >
-                      Details
-                    </button>
-                  </div>
+                  )}
+                  <button
+                    onClick={() => setSelectedReport(report)}
+                    className="bg-gray-100 text-gray-800 text-xs font-medium px-3 py-1 rounded-full border"
+                  >
+                    Details
+                  </button>
                 </div>
               </div>
+            </div>
           ))
         ) : (
-          <div className="text-center text-gray-500">No reports found</div>
+          <div className="text-center text-gray-500 py-4">No reports found</div>
         )}
       </div>
 
@@ -228,11 +231,22 @@ export default function ReportsTable({ selectedStatus, selectedCategory, searchQ
               </button>
             </div>
             <div className="space-y-3 p-4 text-sm">
-              <div><span className="font-semibold">Category:</span> {selectedReport.category}</div>
-              <div><span className="font-semibold">Status:</span> {selectedReport.status}</div>
-              <div><span className="font-semibold">Date:</span> {selectedReport.date}</div>
-              <div><span className="font-semibold">Location:</span> {selectedReport.location}</div>
-              <div><span className="font-semibold">Resident:</span> {selectedReport.residentName || "-"} ({selectedReport.residentEmail || "-"})</div>
+              <div>
+                <span className="font-semibold">Category:</span> {selectedReport.category}
+              </div>
+              <div>
+                <span className="font-semibold">Status:</span> {selectedReport.status}
+              </div>
+              <div>
+                <span className="font-semibold">Date:</span> {selectedReport.date}
+              </div>
+              <div>
+                <span className="font-semibold">Location:</span> {selectedReport.location}
+              </div>
+              <div>
+                <span className="font-semibold">Resident:</span> {selectedReport.residentName || "-"} (
+                {selectedReport.residentEmail || "-"})
+              </div>
               <div>
                 <span className="font-semibold">Description:</span>
                 <p className="mt-1 whitespace-pre-wrap">{selectedReport.description || "-"}</p>
@@ -242,7 +256,12 @@ export default function ReportsTable({ selectedStatus, selectedCategory, searchQ
                 {selectedReport.images && selectedReport.images.length > 0 ? (
                   <div className="mt-2 grid grid-cols-2 gap-3">
                     {selectedReport.images.map((img, idx) => (
-                      <img key={`${selectedReport.id}-${idx}`} src={img} alt={`report-${selectedReport.id}-${idx}`} className="h-40 w-full rounded border object-cover" />
+                      <img
+                        key={`${selectedReport.id}-${idx}`}
+                        src={img}
+                        alt={`report-${selectedReport.id}-${idx}`}
+                        className="h-40 w-full rounded border object-cover"
+                      />
                     ))}
                   </div>
                 ) : (

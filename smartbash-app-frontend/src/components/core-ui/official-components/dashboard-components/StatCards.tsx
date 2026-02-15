@@ -13,31 +13,36 @@ interface StatCardsProps {
   totalReports: number;
   fireReports: number;
   floodReports: number;
+  onCardClick?: (card: "all" | "fire" | "flood") => void;
 }
 
 export default function StatCards({
   totalReports,
   fireReports,
   floodReports,
+  onCardClick,
 }: StatCardsProps) {
   const stats = [
     {
       title: "Total Reports",
       value: String(totalReports),
       highlight: true,
+      key: "all" as const,
     },
     {
       title: "Fire Reports",
       value: String(fireReports),
+      key: "fire" as const,
     },
     {
       title: "Flood Reports",
       value: String(floodReports),
+      key: "flood" as const,
     },
   ];
 
-  const handleClick = (title: string) => {
-    console.log("Clicked:", title);
+  const handleClick = (key: "all" | "fire" | "flood") => {
+    onCardClick?.(key);
   };
 
   return (
@@ -45,7 +50,7 @@ export default function StatCards({
       {stats.map((s) => (
         <Card
           key={s.title}
-          onClick={() => handleClick(s.title)}
+          onClick={() => handleClick(s.key)}
           className={`group cursor-pointer ${
             s.highlight
               ? "bg-green-700 text-white shadow-lg shadow-green-900/30"

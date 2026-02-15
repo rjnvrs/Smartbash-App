@@ -7,15 +7,10 @@ import { PanelRightClose } from "lucide-react";
 export function ClusterDetails({
   clusterIncidents = [],
   onCollapse,
-  onDispatchIncident,
-  onCloseIncident,
 }: {
   clusterIncidents: Incident[];
   onCollapse?: () => void;
-  onDispatchIncident: (incidentId: number) => void;
-  onCloseIncident: (incidentId: number) => void;
 }) {
-  const totalReports = clusterIncidents.reduce((sum, item) => sum + (item.reports || 0), 0);
   return (
     <div className="flex flex-col h-full w-full min-h-0">
       {/* Header - Fixed */}
@@ -25,7 +20,7 @@ export function ClusterDetails({
             Cluster Details
           </h2>
           <p className="text-sm text-gray-500">
-            {totalReports} report{totalReports !== 1 ? "s" : ""} across {clusterIncidents.length} incident{clusterIncidents.length !== 1 ? "s" : ""}
+            {clusterIncidents.length} incident{clusterIncidents.length !== 1 ? "s" : ""}
           </p>
         </div>
         <button
@@ -49,13 +44,10 @@ export function ClusterDetails({
             {clusterIncidents.map((i) => (
               <IncidentCard
                 key={i.id}
-                id={i.id}
                 type={i.type}
                 urgency={i.urgency}
                 reports={i.reports}
                 location={i.location}
-                onDispatch={onDispatchIncident}
-                onClose={onCloseIncident}
               />
             ))}
           </div>
