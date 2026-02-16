@@ -1,25 +1,20 @@
+import { API_BASE } from "@/lib/api";
+import { clearCookie, getCookie, setCookie } from "@/lib/cookies";
+
 export function saveAuthTokens(access: string, refresh: string) {
-  if (typeof window !== "undefined") {
-    localStorage.setItem("access", access);
-    localStorage.setItem("refresh", refresh);
-  }
+  setCookie("access_token", access, 60 * 60 * 24);
+  setCookie("refresh_token", refresh, 60 * 60 * 24 * 7);
 }
 
 export function getAccessToken() {
-  if (typeof window !== "undefined") {
-    return localStorage.getItem("access");
-  }
-  return null;
+  return getCookie("access_token");
 }
 
 export function clearAuthTokens() {
-  if (typeof window !== "undefined") {
-    localStorage.removeItem("access");
-    localStorage.removeItem("refresh");
-  }
+  clearCookie("access_token");
+  clearCookie("refresh_token");
+  clearCookie("user_role");
 }
-
-import { API_BASE } from "@/lib/api";
 
 export async function logout() {
   try {
@@ -34,8 +29,5 @@ export async function logout() {
 }
 
 export function isAuthenticated() {
-  if (typeof window !== "undefined") {
-    return !!localStorage.getItem("access");
-  }
-  return false;
+  return !!getCookie("access_token");
 }

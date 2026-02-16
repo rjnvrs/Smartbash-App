@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -38,11 +38,6 @@ export default function ResidentSettingsPage() {
     confirm: "",
   });
 
-  const profileImageKey = useMemo(() => {
-    const email = (formData.email || "").trim().toLowerCase();
-    return email ? `residentProfileImage:${email}` : "residentProfileImage";
-  }, [formData.email]);
-
   useEffect(() => {
     const loadProfile = async () => {
       setIsLoading(true);
@@ -52,10 +47,6 @@ export default function ResidentSettingsPage() {
         if (!res.ok) throw new Error(data?.message || "Failed to load profile");
 
         const profile = data?.profile || {};
-        const email = (profile.email || "").trim().toLowerCase();
-        const imageKey = email ? `residentProfileImage:${email}` : "residentProfileImage";
-        const savedImage = typeof window !== "undefined" ? localStorage.getItem(imageKey) : null;
-
         setFormData({
           firstName: profile.firstName || "",
           middleName: profile.middleName || "",
@@ -66,7 +57,7 @@ export default function ResidentSettingsPage() {
           email: profile.email || "",
           contact: profile.contact || "",
         });
-        setProfileImage(savedImage || "");
+        setProfileImage(profile.avatarUrl || "");
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Failed to load profile";
         window.alert(message);
@@ -89,15 +80,29 @@ export default function ResidentSettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const image = reader.result as string;
-      setProfileImage(image);
-      localStorage.setItem(profileImageKey, image);
-      window.dispatchEvent(new Event("profileUpdated"));
-      window.alert("Profile image updated!");
+    const upload = async () => {
+      try {
+        const form = new FormData();
+        form.append("avatar", file);
+        const res = await apiFetch("/auth/residents/profile/avatar/", {
+          method: "POST",
+          headers: {},
+          body: form,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || "Failed to upload image");
+        setProfileImage(data?.avatarUrl || "");
+        window.dispatchEvent(new Event("profileUpdated"));
+        window.alert("Profile image updated!");
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Failed to upload image";
+        window.alert(message);
+      } finally {
+        e.target.value = "";
+      }
     };
-    reader.readAsDataURL(file);
+
+    upload();
   };
 
   const handleSave = async () => {
@@ -161,17 +166,20 @@ export default function ResidentSettingsPage() {
     .replace(/\s+/g, " ")
     .trim() || "Full name";
 
-  const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=E5E7EB&color=111827&size=256`;
+  const fallbackAvatar = useMemo(
+    () => `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=E5E7EB&color=111827&size=256`,
+    [fullName]
+  );
 
   return (
-    <div className="bg-gray-100 min-h-screen flex items-center justify-center py-8 px-6">
-      <div className="w-full max-w-6xl flex gap-6 min-h-[700px]">
-        <div className="w-80 bg-white rounded-2xl shadow-md p-8 flex flex-col items-center">
+    <div className="bg-gray-100 min-h-screen flex items-start lg:items-center justify-center py-4 md:py-8 px-3 sm:px-4 md:px-6">
+      <div className="w-full max-w-6xl flex flex-col lg:flex-row gap-4 md:gap-6 lg:min-h-[700px]">
+        <div className="w-full lg:w-80 bg-white rounded-2xl shadow-md p-5 sm:p-6 md:p-8 flex flex-col items-center">
           <button
             onClick={() => router.push("/dashboards/residents")}
             className="mb-6 h-9 w-9 flex items-center justify-center rounded-full border hover:bg-gray-100 transition self-start px-2 text-sm"
           >
-            ←
+            &larr;
           </button>
 
           <h2 className="text-2xl font-semibold mb-8 self-start">Settings</h2>
@@ -193,7 +201,7 @@ export default function ResidentSettingsPage() {
           </div>
         </div>
 
-        <div className="flex-1 bg-white rounded-2xl shadow-md p-12 min-h-[700px]">
+        <div className="flex-1 bg-white rounded-2xl shadow-md p-5 sm:p-6 md:p-10 lg:p-12 lg:min-h-[700px]">
           {activeTab === "info" && (
             <>
               <h2 className="text-2xl font-semibold mb-12">Personal Information</h2>
@@ -212,22 +220,22 @@ export default function ResidentSettingsPage() {
                     <p className="mt-6 text-xl font-medium">{fullName}</p>
                   </div>
 
-                  <div className="flex gap-8 mb-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-8 mb-8">
                     <Input label="Firstname" name="firstName" value={formData.firstName} onChange={handleChange} />
                     <Input label="Middle Name" name="middleName" value={formData.middleName} onChange={handleChange} />
                     <Input label="Last Name" name="lastName" value={formData.lastName} onChange={handleChange} />
                   </div>
-                  <div className="flex gap-8 mb-8 items-end">
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 md:gap-8 mb-8 items-end">
                     <Input label="Location" name="location" value={formData.location} onChange={handleChange} />
                     <Input label="Age" name="age" value={formData.age} onChange={handleChange} />
                     <Input label="Gender (M/F)" name="gender" value={formData.gender} onChange={handleChange} />
                   </div>
-                  <div className="flex gap-8 mb-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-8 mb-8">
                     <Input label="Email" name="email" value={formData.email} onChange={handleChange} readOnly />
                     <Input label="Contact No." name="contact" value={formData.contact} onChange={handleChange} />
                   </div>
 
-                  <div className="flex justify-center gap-8 mt-16">
+                  <div className="flex flex-col sm:flex-row justify-center gap-4 sm:gap-8 mt-10 md:mt-16">
                     <button onClick={() => router.refresh()} className="px-10 py-3 bg-gray-200 rounded-xl hover:bg-gray-300 transition">Discard Changes</button>
                     <button onClick={handleSave} className="px-10 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition">Save Changes</button>
                   </div>

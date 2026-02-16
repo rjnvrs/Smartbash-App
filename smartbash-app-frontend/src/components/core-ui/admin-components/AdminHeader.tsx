@@ -4,6 +4,7 @@ import { LogOut, Bell, User, Settings, CheckCircle, XCircle, Clock } from "lucid
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiFetch, parseJsonSafe } from "@/lib/api";
+import { clearAuthTokens } from "@/lib/auth";
 
 export default function AdminHeader() {
   const router = useRouter();
@@ -14,10 +15,7 @@ export default function AdminHeader() {
 
   const handleLogout = () => {
     apiFetch("/auth/logout/", { method: "POST" }).catch(() => {});
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("access");
-      localStorage.removeItem("refresh");
-    }
+    clearAuthTokens();
     router.push("/login");
   };
 

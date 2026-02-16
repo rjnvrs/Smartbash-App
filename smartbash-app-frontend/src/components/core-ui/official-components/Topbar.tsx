@@ -52,13 +52,10 @@ export default function Topbar({ onSearch }: TopbarProps) {
         const data = await res.json();
         if (!res.ok) return;
         const profile = data?.profile || {};
-        const profileEmail = (profile.email || "").trim().toLowerCase();
-        const key = profileEmail ? `officialProfileImage:${profileEmail}` : "officialProfileImage";
-        const savedImage = localStorage.getItem(key);
         if (!cancelled) {
           setBrgyName(profile.name || "Barangay Official");
           setEmail(profile.email || "official@gmail.com");
-          setProfileImage(savedImage || "");
+          setProfileImage(profile.avatarUrl || "");
         }
       } catch {
         // keep defaults

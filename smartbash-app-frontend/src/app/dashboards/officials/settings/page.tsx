@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -33,11 +33,6 @@ export default function SettingsPage() {
     confirm: "",
   });
 
-  const profileImageKey = useMemo(() => {
-    const email = (formData.email || "").trim().toLowerCase();
-    return email ? `officialProfileImage:${email}` : "officialProfileImage";
-  }, [formData.email]);
-
   const fallbackAvatar = useMemo(() => {
     const label = (formData.name || formData.email || "Official").trim();
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(label)}&background=E5E7EB&color=111827&size=256`;
@@ -58,10 +53,7 @@ export default function SettingsPage() {
           email: profile.email || "",
           contact: profile.contact || "",
         });
-        const email = (profile.email || "").trim().toLowerCase();
-        const key = email ? `officialProfileImage:${email}` : "officialProfileImage";
-        const saved = localStorage.getItem(key);
-        setProfileImage(saved || "");
+        setProfileImage(profile.avatarUrl || "");
       } catch (error) {
         const message = error instanceof Error ? error.message : "Failed to load profile";
         window.alert(message);
@@ -84,17 +76,29 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const image = reader.result as string;
-      setProfileImage(image);
-      localStorage.setItem(profileImageKey, image);
-      window.dispatchEvent(new Event("profileUpdated"));
-      window.alert("Profile image updated!");
+    const upload = async () => {
+      try {
+        const form = new FormData();
+        form.append("avatar", file);
+        const res = await apiFetch("/auth/officials/profile/avatar/", {
+          method: "POST",
+          headers: {},
+          body: form,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.message || "Failed to upload image");
+        setProfileImage(data?.avatarUrl || "");
+        window.dispatchEvent(new Event("profileUpdated"));
+        window.alert("Profile image updated!");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to upload image";
+        window.alert(message);
+      } finally {
+        e.target.value = "";
+      }
     };
 
-    reader.readAsDataURL(file);
-    e.target.value = "";
+    upload();
   };
 
   const handleSave = async () => {
@@ -146,14 +150,14 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="bg-gray-100 min-h-screen flex items-center justify-center py-8 px-6">
-      <div className="w-full max-w-6xl flex gap-6 min-h-[700px]">
-        <div className="w-80 bg-white rounded-2xl shadow-md p-8 flex flex-col items-center">
+    <div className="bg-gray-100 min-h-screen flex items-start lg:items-center justify-center py-4 md:py-8 px-3 sm:px-4 md:px-6">
+      <div className="w-full max-w-6xl flex flex-col lg:flex-row gap-4 md:gap-6 lg:min-h-[700px]">
+        <div className="w-full lg:w-80 bg-white rounded-2xl shadow-md p-5 sm:p-6 md:p-8 flex flex-col items-center">
           <button
             onClick={() => router.push("/dashboards/officials")}
             className="mb-6 h-9 w-9 flex items-center justify-center rounded-full border hover:bg-gray-100 transition self-start"
           >
-            ←
+            &larr;
           </button>
 
           <h2 className="text-2xl font-semibold mb-8 self-start">Settings</h2>
@@ -192,7 +196,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="flex-1 bg-white rounded-2xl shadow-md p-12 min-h-[700px]">
+        <div className="flex-1 bg-white rounded-2xl shadow-md p-5 sm:p-6 md:p-10 lg:p-12 lg:min-h-[700px]">
           <div className={activeTab === "info" ? "block" : "hidden"}>
             <h2 className="text-2xl font-semibold mb-12">Barangay Information</h2>
 
@@ -214,7 +218,7 @@ export default function SettingsPage() {
                   <p className="text-gray-500 text-sm">{formData.email}</p>
                 </div>
 
-                <div className="max-w-4xl mx-auto grid grid-cols-2 gap-10 mb-16">
+                <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-10 mb-16">
                   <div>
                     <label className="text-sm text-gray-600">Name</label>
                     <input name="name" value={formData.name} onChange={handleChange} className="w-full border rounded-xl px-4 py-3 mt-2" />
@@ -236,7 +240,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-center gap-8 mt-20">
+                <div className="flex flex-col sm:flex-row justify-center gap-4 sm:gap-8 mt-10 md:mt-20">
                   <button onClick={handleDiscard} className="px-10 py-3 bg-gray-200 rounded-xl hover:bg-gray-300 transition">
                     Discard Changes
                   </button>

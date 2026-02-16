@@ -1,3 +1,5 @@
+import { clearCookie, getCookie, setCookie } from "@/lib/cookies";
+
 const browserApiBase =
   typeof window !== "undefined"
     ? `${window.location.protocol}//${window.location.hostname}:8000/api`
@@ -18,11 +20,12 @@ export async function parseJsonSafe(res: Response) {
 
 async function getAuthToken() {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem("access");
+  return getCookie("access_token");
 }
 
 async function refreshAccessToken() {
-  const refresh = localStorage.getItem("refresh");
+  if (typeof window === "undefined") return null;
+  const refresh = getCookie("refresh_token");
   if (!refresh) return null;
 
   try {
@@ -32,13 +35,16 @@ async function refreshAccessToken() {
       body: JSON.stringify({ refresh }),
     });
     if (!res.ok) {
-      localStorage.removeItem("access");
-      localStorage.removeItem("refresh");
+      clearCookie("access_token");
+      clearCookie("refresh_token");
+      clearCookie("user_role");
       window.location.href = "/login";
       return null;
     }
     const data = await res.json();
-    localStorage.setItem("access", data.access);
+    if (data?.access) {
+      setCookie("access_token", data.access, 60 * 60 * 24);
+    }
     return data.access;
   } catch (error) {
     console.error("Token refresh failed:", error);
@@ -53,10 +59,13 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
     token = await refreshAccessToken();
   }
 
-  const headers: any = {
-    "Content-Type": "application/json",
-    ...options.headers,
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string> | undefined),
   };
+  if (!isFormData && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (token) {
     headers.Authorization = `Bearer ${token}`;

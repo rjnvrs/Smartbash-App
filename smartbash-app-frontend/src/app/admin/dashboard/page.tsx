@@ -17,18 +17,9 @@ export default function Page() {
     normalizeRole(role).includes("service");
 
   const [users, setUsers] = useState<User[]>([]);
-  const [search, setSearch] = useState(() => {
-    if (typeof window === "undefined") return "";
-    return localStorage.getItem("admin_search") || "";
-  });
-  const [statusFilter, setStatusFilter] = useState(() => {
-    if (typeof window === "undefined") return "All Status";
-    return localStorage.getItem("admin_status") || "All Status";
-  });
-  const [tab, setTab] = useState<"All" | Role>(() => {
-    if (typeof window === "undefined") return "All";
-    return (localStorage.getItem("admin_tab") as "All" | Role) || "All";
-  });
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All Status");
+  const [tab, setTab] = useState<"All" | Role>("All");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -45,7 +36,7 @@ export default function Page() {
         throw new Error(data.message || "Failed to load approvals");
       }
       const normalizedUsers = ((data?.users || []) as User[]).map((u) => {
-        const role = isServiceRole(u.role) ? "Services" : "Brgy. Officials";
+        const role: Role = isServiceRole(u.role) ? "Services" : "Brgy. Officials";
         return {
           ...u,
           role,
@@ -63,13 +54,6 @@ export default function Page() {
   useEffect(() => {
     loadUsers();
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem("admin_search", search);
-    localStorage.setItem("admin_status", statusFilter);
-    localStorage.setItem("admin_tab", tab);
-  }, [search, statusFilter, tab]);
 
   const handleStatusChange = async (id: number, newStatus: Status, role?: Role) => {
     const targetRole = role || users.find((u) => u.id === id)?.role;

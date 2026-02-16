@@ -19,6 +19,7 @@ type Post = {
   id: number;
   author: string;
   authorEmail?: string;
+  authorAvatarUrl?: string;
   time: string;
   postType: PostType;
   incidentType: IncidentType;
@@ -79,10 +80,7 @@ export default function NewsFeedList() {
       setResidentName(fullName || "Resident");
       const email = (profile.email || "").trim().toLowerCase();
       setResidentEmail(email);
-      const key = email ? `residentProfileImage:${email}` : "residentProfileImage";
-      const saved = localStorage.getItem(key);
-      if (saved && saved !== "null") setProfileImage(saved);
-      else setProfileImage("");
+      setProfileImage(profile.avatarUrl || "");
     } catch {
       setProfileImage("");
       setResidentName("Resident");
@@ -377,7 +375,15 @@ export default function NewsFeedList() {
         <div key={post.id} className="bg-white border rounded-xl shadow-sm">
           <div className="flex justify-between p-4">
             <div className="flex gap-3">
-              <FaUserCircle className="text-3xl text-gray-400" />
+              {post.authorAvatarUrl ? (
+                <img
+                  src={post.authorAvatarUrl}
+                  alt={post.author}
+                  className="w-8 h-8 rounded-full object-cover"
+                />
+              ) : (
+                <FaUserCircle className="text-3xl text-gray-400" />
+              )}
               <div>
                 <p className="font-semibold text-sm">{post.author}</p>
                 <div className="flex gap-2 text-xs text-gray-500">

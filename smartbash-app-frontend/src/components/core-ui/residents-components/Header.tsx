@@ -25,13 +25,10 @@ export default function Header() {
           const name = `${p.firstName || ""} ${p.middleName || ""} ${p.lastName || ""}`
             .replace(/\s+/g, " ")
             .trim();
-          const email = (p.email || "").trim().toLowerCase();
-          const key = email ? `residentProfileImage:${email}` : "residentProfileImage";
-          const savedImage = localStorage.getItem(key);
 
           if (!cancelled) {
             if (name) setFullName(name);
-            setProfileImage(savedImage || "");
+            setProfileImage(p.avatarUrl || "");
           }
         }
       } catch {

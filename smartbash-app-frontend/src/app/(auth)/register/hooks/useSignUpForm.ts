@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, ChangeEvent, FormEvent, useEffect } from "react";
+import { useState, ChangeEvent } from "react";
 import { validateForm } from "../utils/validation";
 import { signupUser } from "@/lib/api";
 
@@ -50,39 +50,6 @@ export function useSignUpForm() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const raw = localStorage.getItem("smartbash_register_form");
-    if (!raw) return;
-    try {
-      const parsed = JSON.parse(raw);
-      if (parsed?.role) setRole(parsed.role as Role);
-      if (parsed?.formData) {
-        setFormData((prev) => ({
-          ...prev,
-          ...parsed.formData,
-          password: "",
-          confirmPassword: "",
-        }));
-      }
-    } catch {
-      // ignore malformed storage
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const sanitized = {
-      ...formData,
-      password: "",
-      confirmPassword: "",
-    };
-    localStorage.setItem(
-      "smartbash_register_form",
-      JSON.stringify({ role, formData: sanitized })
-    );
-  }, [role, formData]);
-
   const resetForm = (newRole: Role) => {
     setRole(newRole);
     setFormData({
@@ -101,9 +68,6 @@ export function useSignUpForm() {
       contact: "",
     });
     setFiles(null);
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("smartbash_register_form");
-    }
   };
 
  const submit = async () => {
@@ -146,9 +110,6 @@ export function useSignUpForm() {
     setSuccessMessage(`Registration successful${roleInfo}. ID: ${createdId}`);
 
     setTimeout(() => {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("smartbash_register_form");
-      }
       const notice =
         role === "Resident"
           ? "Registration submitted. Please wait for officials approval."

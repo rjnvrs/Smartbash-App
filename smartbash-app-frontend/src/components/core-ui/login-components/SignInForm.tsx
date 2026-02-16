@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import SocialLoginButton from "./SocialLoginButton";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useSearchParams } from "next/navigation";
 
@@ -20,6 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { API_BASE } from "@/lib/api";
+import { setCookie } from "@/lib/cookies";
 
 type SignInFormValues = {
   email: string;
@@ -27,6 +28,13 @@ type SignInFormValues = {
 };
 
 type UserRole = "Resident" | "Services" | "BrgyOfficials" | "Admin";
+
+function setFrontendAuthCookies(access: string, refresh: string, role: UserRole) {
+  const maxAge = 60 * 60 * 24; // 1 day
+  setCookie("access_token", access, maxAge);
+  setCookie("refresh_token", refresh, maxAge * 7);
+  setCookie("user_role", role, maxAge);
+}
 
 export default function SignInForm() {
   const [isLoading, setIsLoading] = useState(false);
@@ -44,20 +52,6 @@ export default function SignInForm() {
     },
   });
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const savedEmail = localStorage.getItem("smartbash_login_email");
-    if (savedEmail) {
-      form.setValue("email", savedEmail);
-    }
-    const subscription = form.watch((value) => {
-      if (value?.email !== undefined) {
-        localStorage.setItem("smartbash_login_email", value.email || "");
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form]);
-
   const onSubmit = async (values: SignInFormValues) => {
     setError("");
     setIsLoading(true);
@@ -73,10 +67,8 @@ export default function SignInForm() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Login failed");
 
-      localStorage.setItem("access", data.access);
-      localStorage.setItem("refresh", data.refresh);
-
       const role: UserRole = data.role;
+      setFrontendAuthCookies(data.access, data.refresh, role);
 
       switch (role) {
         case "Resident":
