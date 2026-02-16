@@ -64,3 +64,17 @@ class ServiceDispatchNotification(models.Model):
     class Meta:
         managed = True
         db_table = "service_dispatch_notifications"
+
+
+class UserProfileAvatar(models.Model):
+    avatar_id = models.AutoField(primary_key=True)
+    role = models.CharField(max_length=30)
+    email = models.CharField(max_length=255)
+    image_path = models.CharField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        managed = True
+        db_table = "user_profile_avatars"
+        unique_together = ("role", "email")

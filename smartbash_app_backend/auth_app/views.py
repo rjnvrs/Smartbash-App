@@ -11,7 +11,7 @@ from django.db.models import Count
 from django.db.models import Q
 from django.core.files.storage import default_storage
 from django.utils import timezone
-from .models import AdminNotification, ProofOfAuthority, ServiceDispatchNotification
+from .models import AdminNotification, ProofOfAuthority, ServiceDispatchNotification, UserProfileAvatar
 from reports.models import IncidentReport, NewsFeedPost
 import os
 import json
@@ -19,6 +19,7 @@ import urllib.request
 import urllib.error
 import urllib.parse
 import re
+import base64
 
 
 @api_view(['POST'])
@@ -250,12 +251,28 @@ def _get_service_for_request(request):
 
 
 def _service_notification_payload(item: ServiceDispatchNotification) -> dict:
+    lat = None
+    lng = None
+    description = ""
+    location = item.location_text or ""
+    try:
+        report = IncidentReport.objects.filter(report_id=item.report_id).first()
+        if report:
+            lat = report.lat
+            lng = report.lng
+            description = report.description or ""
+            location = report.location_text or location
+    except Exception:
+        pass
     return {
         "id": item.dispatch_id,
         "reportId": item.report_id,
         "incidentType": item.incident_type,
         "barangay": item.barangay or "",
-        "location": item.location_text or "",
+        "location": location,
+        "description": description,
+        "lat": lat,
+        "lng": lng,
         "status": item.status,
         "smsSent": item.sms_sent,
         "smsError": item.sms_error or "",
@@ -295,6 +312,54 @@ def _absolute_url(request, url: str | None) -> str | None:
         return request.build_absolute_uri(url)
     except Exception:
         return url
+
+
+def _avatar_key(role: str, email: str | None) -> tuple[str, str]:
+    return role.strip(), (email or "").strip().lower()
+
+
+def _get_avatar_url(request, role: str, email: str | None) -> str | None:
+    role_key, email_key = _avatar_key(role, email)
+    if not role_key or not email_key:
+        return None
+    try:
+        avatar = UserProfileAvatar.objects.filter(role=role_key, email=email_key).first()
+        if not avatar:
+            return None
+        return _absolute_url(request, default_storage.url(avatar.image_path))
+    except Exception:
+        return None
+
+
+def _save_avatar_file(role: str, email: str, image_file) -> tuple[bool, str | None, str | None]:
+    role_key, email_key = _avatar_key(role, email)
+    if not role_key or not email_key:
+        return False, None, "Invalid role or email"
+    if not image_file:
+        return False, None, "Image file is required"
+
+    ext = os.path.splitext(image_file.name or "")[1].lower()
+    if ext not in [".jpg", ".jpeg", ".png", ".webp"]:
+        ext = ".jpg"
+    safe_email = re.sub(r"[^a-z0-9]+", "_", email_key)
+    filename = f"{role_key.lower()}_{safe_email}_{int(timezone.now().timestamp())}{ext}"
+    file_path = default_storage.save(os.path.join("uploads", "avatars", filename), image_file)
+
+    avatar, created = UserProfileAvatar.objects.get_or_create(
+        role=role_key,
+        email=email_key,
+        defaults={"image_path": file_path},
+    )
+    if not created:
+        old_path = avatar.image_path
+        avatar.image_path = file_path
+        avatar.save(update_fields=["image_path", "updated_at"])
+        if old_path and old_path != file_path:
+            try:
+                default_storage.delete(old_path)
+            except Exception:
+                pass
+    return True, file_path, None
 
 
 def _normalize_incident_type(value: str | None) -> str:
@@ -453,6 +518,56 @@ def _send_dispatch_sms(service, message_text: str) -> tuple[bool, str | None]:
             return False, f"Semaphore HTTP {exc.code}: {err_body[:200]}"
         except urllib.error.URLError as exc:
             return False, f"Semaphore URL error: {str(exc)}"
+
+    if provider == "TWILIO":
+        twilio_sid = (os.environ.get("TWILIO_ACCOUNT_SID") or "").strip()
+        twilio_token = (os.environ.get("TWILIO_AUTH_TOKEN") or "").strip()
+        twilio_from = (os.environ.get("TWILIO_FROM_NUMBER") or "").strip()
+        twilio_messaging_service_sid = (os.environ.get("TWILIO_MESSAGING_SERVICE_SID") or "").strip()
+        phone = _normalize_phone_number(service.svc_contact_number)
+
+        if not twilio_sid or not twilio_token:
+            return False, "SMS provider not configured: missing TWILIO_ACCOUNT_SID/TWILIO_AUTH_TOKEN"
+        if not twilio_from and not twilio_messaging_service_sid:
+            return False, "SMS provider not configured: missing TWILIO_FROM_NUMBER or TWILIO_MESSAGING_SERVICE_SID"
+        if not phone:
+            return False, "Service contact number missing"
+
+        twilio_url = f"https://api.twilio.com/2010-04-01/Accounts/{twilio_sid}/Messages.json"
+        form_data = {
+            "To": phone,
+            "Body": message_text,
+        }
+        if twilio_messaging_service_sid:
+            form_data["MessagingServiceSid"] = twilio_messaging_service_sid
+        else:
+            form_data["From"] = twilio_from
+
+        payload = urllib.parse.urlencode(form_data).encode("utf-8")
+        auth_token = base64.b64encode(f"{twilio_sid}:{twilio_token}".encode("utf-8")).decode("ascii")
+        request = urllib.request.Request(
+            twilio_url,
+            data=payload,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Authorization": f"Basic {auth_token}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=12) as response:
+                body = response.read().decode("utf-8", errors="ignore")
+                if 200 <= response.status < 300:
+                    return True, None
+                return False, f"Twilio HTTP {response.status}: {body[:200]}"
+        except urllib.error.HTTPError as exc:
+            try:
+                err_body = exc.read().decode("utf-8", errors="ignore")
+            except Exception:
+                err_body = ""
+            return False, f"Twilio HTTP {exc.code}: {err_body[:200]}"
+        except urllib.error.URLError as exc:
+            return False, f"Twilio URL error: {str(exc)}"
 
     sms_api_url = os.environ.get("SMS_API_URL")
     sms_api_key = os.environ.get("SMS_API_KEY")
@@ -866,10 +981,12 @@ def officials_residents_pending(request):
             if part
         ).strip()
         proof_url = None
+        proof_name = None
         try:
             proof = ProofOfAuthority.objects.filter(resident=res).order_by("-uploaded_at").first()
             if proof:
                 proof_url = _absolute_url(request, default_storage.url(proof.file_path))
+                proof_name = os.path.basename(proof.file_path or "")
         except Exception:
             pass
         residents.append(
@@ -880,7 +997,7 @@ def officials_residents_pending(request):
                 "contact": res.res_contact_number or "",
                 "gender": res.res_gender,
                 "age": res.res_age,
-                "details": "Proof of Authority",
+                "details": proof_name or "Proof of Authority",
                 "status": _status_from_flags(res.res_is_active, res.res_is_deleted),
                 "actionDate": res.res_updated_on.isoformat() if res.res_updated_on else None,
                 "proofUrl": proof_url,
@@ -1220,11 +1337,27 @@ def residents_newsfeed_list(request):
     email = resident.res_email_address
     # Facebook-like feed: residents can see posts across barangays in the system.
     rows = NewsFeedPost.objects.filter(is_deleted=False).order_by("-created_at")[:100]
+    author_emails = {
+        (p.author_email or "").strip().lower()
+        for p in rows
+        if (p.author_email or "").strip()
+    }
+    avatar_by_email = {}
+    if author_emails:
+        try:
+            avatars = UserProfileAvatar.objects.filter(role="Resident", email__in=list(author_emails))
+            avatar_by_email = {
+                a.email: _absolute_url(request, default_storage.url(a.image_path))
+                for a in avatars
+            }
+        except Exception:
+            avatar_by_email = {}
     posts = [
         {
             "id": p.post_id,
             "author": p.author_name or p.author_email,
             "authorEmail": p.author_email or "",
+            "authorAvatarUrl": avatar_by_email.get((p.author_email or "").strip().lower()),
             "time": p.created_at.isoformat() if p.created_at else "",
             "postType": p.post_type,
             "incidentType": p.incident_type,
@@ -1521,6 +1654,30 @@ def services_dispatch_notifications(request):
     return Response({"dispatches": [_service_notification_payload(item) for item in rows]}, status=200)
 
 
+@api_view(['POST'])
+def services_dispatch_complete(request):
+    service_user = _get_service_for_request(request)
+    if not service_user or service_user.svc_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    dispatch_id = request.data.get("dispatchId")
+    if not dispatch_id:
+        return Response({"message": "Missing dispatchId"}, status=400)
+
+    row = ServiceDispatchNotification.objects.filter(
+        dispatch_id=dispatch_id,
+        service=service_user,
+    ).first()
+    if not row:
+        return Response({"message": "Dispatch not found"}, status=404)
+
+    row.status = "Completed"
+    row.save(update_fields=["status"])
+
+    IncidentReport.objects.filter(report_id=row.report_id).update(status="Completed", updated_at=timezone.now())
+    return Response({"message": "Completed"}, status=200)
+
+
 @api_view(['GET'])
 def officials_notifications(request):
     official = _get_official_for_request(request)
@@ -1552,7 +1709,11 @@ def ai_chat(request):
 
 @api_view(['POST'])
 def logout(request):
-    return Response({"message": "Logged out"}, status=200)
+    response = Response({"message": "Logged out"}, status=200)
+    response.delete_cookie("access_token", path="/")
+    response.delete_cookie("refresh_token", path="/")
+    response.delete_cookie("user_role", path="/")
+    return response
 
 
 @api_view(['POST'])
@@ -1611,7 +1772,7 @@ def login(request):
     if role != "Admin" and not is_active:
         return Response({"message": "Account pending approval"}, status=403)
 
-    return Response({
+    response = Response({
         "message": "Login successful",
         "access": str(refresh.access_token),
         "refresh": str(refresh),
@@ -1621,6 +1782,34 @@ def login(request):
             "email": user.email
         }
     }, status=status.HTTP_200_OK)
+    response.set_cookie(
+        key="access_token",
+        value=str(refresh.access_token),
+        max_age=60 * 60 * 24,
+        httponly=False,
+        samesite="Lax",
+        secure=False,
+        path="/",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=str(refresh),
+        max_age=60 * 60 * 24 * 7,
+        httponly=False,
+        samesite="Lax",
+        secure=False,
+        path="/",
+    )
+    response.set_cookie(
+        key="user_role",
+        value=role,
+        max_age=60 * 60 * 24,
+        httponly=False,
+        samesite="Lax",
+        secure=False,
+        path="/",
+    )
+    return response
 
 
 @api_view(['GET'])
@@ -1638,6 +1827,7 @@ def officials_profile(request):
                 "email": official.official_email_address or "",
                 "contact": official.official_contact_number or "",
                 "position": official.official_position or "",
+                "avatarUrl": _get_avatar_url(request, "BrgyOfficials", official.official_email_address),
             }
         },
         status=200,
@@ -1657,6 +1847,26 @@ def officials_profile_update(request):
     official.save(update_fields=["official_name", "official_barangay", "official_contact_number", "official_updated_on"])
 
     return Response({"message": "Profile updated"}, status=200)
+
+
+@api_view(['POST'])
+def officials_profile_avatar_update(request):
+    official = _get_official_for_request(request)
+    if not official or official.official_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    image_file = request.FILES.get("avatar") if hasattr(request, "FILES") else None
+    ok, _, error = _save_avatar_file("BrgyOfficials", official.official_email_address, image_file)
+    if not ok:
+        return Response({"message": error or "Failed to save avatar"}, status=400)
+
+    return Response(
+        {
+            "message": "Avatar updated",
+            "avatarUrl": _get_avatar_url(request, "BrgyOfficials", official.official_email_address),
+        },
+        status=200,
+    )
 
 
 @api_view(['POST'])
@@ -1700,6 +1910,7 @@ def residents_profile(request):
                 "gender": resident.res_gender or "",
                 "email": resident.res_email_address or "",
                 "contact": resident.res_contact_number or "",
+                "avatarUrl": _get_avatar_url(request, "Resident", resident.res_email_address),
             }
         },
         status=200,
@@ -1745,6 +1956,26 @@ def residents_profile_update(request):
 
 
 @api_view(['POST'])
+def residents_profile_avatar_update(request):
+    resident = _get_resident_for_request(request)
+    if not resident or resident.res_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    image_file = request.FILES.get("avatar") if hasattr(request, "FILES") else None
+    ok, _, error = _save_avatar_file("Resident", resident.res_email_address, image_file)
+    if not ok:
+        return Response({"message": error or "Failed to save avatar"}, status=400)
+
+    return Response(
+        {
+            "message": "Avatar updated",
+            "avatarUrl": _get_avatar_url(request, "Resident", resident.res_email_address),
+        },
+        status=200,
+    )
+
+
+@api_view(['POST'])
 def residents_password_update(request):
     resident = _get_resident_for_request(request)
     if not resident or resident.res_is_deleted:
@@ -1764,6 +1995,85 @@ def residents_password_update(request):
     resident.res_password = user.password
     resident.res_updated_on = timezone.now()
     resident.save(update_fields=["res_password", "res_updated_on"])
+
+    return Response({"message": "Password updated"}, status=200)
+
+
+@api_view(['GET'])
+def services_profile(request):
+    service = _get_service_for_request(request)
+    if not service or service.svc_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    return Response(
+        {
+            "profile": {
+                "teamName": service.svc_name or "",
+                "location": service.svc_location or "",
+                "email": service.svc_email_address or "",
+                "contact": service.svc_contact_number or "",
+                "avatarUrl": _get_avatar_url(request, "Services", service.svc_email_address),
+            }
+        },
+        status=200,
+    )
+
+
+@api_view(['POST'])
+def services_profile_update(request):
+    service = _get_service_for_request(request)
+    if not service or service.svc_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    service.svc_name = (request.data.get("teamName") or service.svc_name or "").strip()
+    service.svc_location = (request.data.get("location") or service.svc_location or "").strip()
+    service.svc_contact_number = (request.data.get("contact") or service.svc_contact_number or "").strip()
+    service.svc_updated_on = timezone.now()
+    service.save(update_fields=["svc_name", "svc_location", "svc_contact_number", "svc_updated_on"])
+
+    return Response({"message": "Profile updated"}, status=200)
+
+
+@api_view(['POST'])
+def services_profile_avatar_update(request):
+    service = _get_service_for_request(request)
+    if not service or service.svc_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    image_file = request.FILES.get("avatar") if hasattr(request, "FILES") else None
+    ok, _, error = _save_avatar_file("Services", service.svc_email_address, image_file)
+    if not ok:
+        return Response({"message": error or "Failed to save avatar"}, status=400)
+
+    return Response(
+        {
+            "message": "Avatar updated",
+            "avatarUrl": _get_avatar_url(request, "Services", service.svc_email_address),
+        },
+        status=200,
+    )
+
+
+@api_view(['POST'])
+def services_password_update(request):
+    service = _get_service_for_request(request)
+    if not service or service.svc_is_deleted:
+        return Response({"message": "Unauthorized"}, status=401)
+
+    current_password = (request.data.get("currentPassword") or "").strip()
+    new_password = (request.data.get("newPassword") or "").strip()
+    if not current_password or not new_password:
+        return Response({"message": "Current and new password are required"}, status=400)
+
+    user = authenticate(username=service.svc_email_address, password=current_password)
+    if not user:
+        return Response({"message": "Current password is incorrect"}, status=400)
+
+    user.set_password(new_password)
+    user.save(update_fields=["password"])
+    service.svc_password = user.password
+    service.svc_updated_on = timezone.now()
+    service.save(update_fields=["svc_password", "svc_updated_on"])
 
     return Response({"message": "Password updated"}, status=200)
 
