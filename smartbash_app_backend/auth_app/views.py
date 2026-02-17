@@ -1,8 +1,9 @@
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework import status
+from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from residents.models import Resident, Admin, Role
 from django.db.utils import ProgrammingError
@@ -20,9 +21,11 @@ import urllib.error
 import urllib.parse
 import re
 import base64
+from pathlib import Path
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def signup(request):
     data = request.POST if request.content_type.startswith("multipart/") else request.data
     role = data.get('role')
@@ -70,13 +73,19 @@ def signup(request):
 
             elif role == "Services":
                 from services.models import Service
+                raw_service_type = (data.get('serviceType') or data.get('type') or data.get('description') or '').strip()
+                normalized_service_type = 'Fire' if raw_service_type.lower() == 'fire' else 'Rescue'
+                if not raw_service_type:
+                    inferred_name = (data.get('name') or data.get('firstName') or '').lower()
+                    if "bfp" in inferred_name or "fire" in inferred_name:
+                        normalized_service_type = "Fire"
                 service = Service.objects.create(
                     svc_name=data.get('name') or data.get('firstName') or '',
                     svc_email_address=email,
                     svc_contact_number=data.get('contact') or data.get('contactNo'),
                     svc_password=user.password,
                     svc_location=data.get('location') or '',
-                    svc_description=data.get('description') or '',
+                    svc_description=normalized_service_type,
                     svc_is_active=False,
                     svc_is_deleted=False,
                 )
@@ -178,6 +187,55 @@ def _flags_from_status(status_value: str) -> tuple[bool, bool]:
     if status_value == "Removed":
         return False, True
     return False, False
+
+
+def _resolve_role_for_email(email: str) -> tuple[str, bool]:
+    role = "Resident"
+    is_active = True
+
+    # Admin takes priority
+    try:
+        if email.lower() == "admin@smartbash.com":
+            return "Admin", True
+    except Exception:
+        pass
+
+    try:
+        admin = Admin.objects.get(admin_email_address=email)
+        if admin:
+            return "Admin", True
+    except (Admin.DoesNotExist, ProgrammingError):
+        pass
+
+    try:
+        resident = Resident.objects.get(res_email_address=email)
+        role = "Resident"
+        is_active = resident.res_is_active and not resident.res_is_deleted
+        return role, is_active
+    except (Resident.DoesNotExist, ProgrammingError):
+        pass
+
+    try:
+        from officials.models import BrgyOfficial
+
+        official = BrgyOfficial.objects.get(official_email_address=email)
+        role = "BrgyOfficials"
+        is_active = official.official_is_active and not official.official_is_deleted
+        return role, is_active
+    except Exception:
+        pass
+
+    try:
+        from services.models import Service
+
+        service = Service.objects.get(svc_email_address=email)
+        role = "Services"
+        is_active = service.svc_is_active and not service.svc_is_deleted
+        return role, is_active
+    except Exception:
+        pass
+
+    return role, is_active
 
 
 class _VirtualAdmin:
@@ -465,21 +523,44 @@ def _normalize_phone_for_semaphore(raw_phone: str | None) -> str:
     return phone
 
 
+def _read_env_file_value(key: str) -> str:
+    try:
+        env_path = Path(__file__).resolve().parents[1] / ".env"
+        if not env_path.exists():
+            return ""
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            raw = line.strip()
+            if not raw or raw.startswith("#") or "=" not in raw:
+                continue
+            k, v = raw.split("=", 1)
+            if k.strip() != key:
+                continue
+            value = v.strip().strip('"').strip("'")
+            return value
+    except Exception:
+        return ""
+    return ""
+
+
+def _get_env_value(*keys: str) -> str:
+    for key in keys:
+        value = (os.environ.get(key) or "").strip()
+        if value:
+            return value
+    for key in keys:
+        value = _read_env_file_value(key).strip()
+        if value:
+            return value
+    return ""
+
+
 def _send_dispatch_sms(service, message_text: str) -> tuple[bool, str | None]:
-    provider = (os.environ.get("SMS_PROVIDER") or "SEMAPHORE").strip().upper()
+    provider = (_get_env_value("SMS_PROVIDER") or "SEMAPHORE").strip().upper()
 
     if provider == "SEMAPHORE":
-        semaphore_api_key = (
-            os.environ.get("SEMAPHORE_API_KEY")
-            or os.environ.get("SMS_API_KEY")
-            or ""
-        ).strip()
-        semaphore_api_url = (
-            os.environ.get("SEMAPHORE_API_URL")
-            or os.environ.get("SMS_API_URL")
-            or "https://api.semaphore.co/api/v4/messages"
-        ).strip()
-        semaphore_sender_name = (os.environ.get("SEMAPHORE_SENDER_NAME") or "").strip()
+        semaphore_api_key = _get_env_value("SEMAPHORE_API_KEY", "SMS_API_KEY")
+        semaphore_api_url = _get_env_value("SEMAPHORE_API_URL", "SMS_API_URL") or "https://api.semaphore.co/api/v4/messages"
+        semaphore_sender_name = _get_env_value("SEMAPHORE_SENDER_NAME")
         phone = _normalize_phone_for_semaphore(service.svc_contact_number)
 
         if not semaphore_api_key:
@@ -489,6 +570,29 @@ def _send_dispatch_sms(service, message_text: str) -> tuple[bool, str | None]:
         if not phone:
             return False, "Service contact number missing"
 
+        def _post_semaphore(form_data: dict) -> tuple[bool, str | None]:
+            payload = urllib.parse.urlencode(form_data).encode("utf-8")
+            request = urllib.request.Request(
+                semaphore_api_url,
+                data=payload,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                method="POST",
+            )
+            try:
+                with urllib.request.urlopen(request, timeout=12) as response:
+                    body = response.read().decode("utf-8", errors="ignore")
+                    if 200 <= response.status < 300:
+                        return True, None
+                    return False, f"Semaphore HTTP {response.status}: {body[:200]}"
+            except urllib.error.HTTPError as exc:
+                try:
+                    err_body = exc.read().decode("utf-8", errors="ignore")
+                except Exception:
+                    err_body = ""
+                return False, f"Semaphore HTTP {exc.code}: {err_body[:200]}"
+            except urllib.error.URLError as exc:
+                return False, f"Semaphore URL error: {str(exc)}"
+
         form_data = {
             "apikey": semaphore_api_key,
             "number": phone,
@@ -497,33 +601,27 @@ def _send_dispatch_sms(service, message_text: str) -> tuple[bool, str | None]:
         if semaphore_sender_name:
             form_data["sendername"] = semaphore_sender_name
 
-        payload = urllib.parse.urlencode(form_data).encode("utf-8")
-        request = urllib.request.Request(
-            semaphore_api_url,
-            data=payload,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            method="POST",
-        )
-        try:
-            with urllib.request.urlopen(request, timeout=12) as response:
-                body = response.read().decode("utf-8", errors="ignore")
-                if 200 <= response.status < 300:
-                    return True, None
-                return False, f"Semaphore HTTP {response.status}: {body[:200]}"
-        except urllib.error.HTTPError as exc:
-            try:
-                err_body = exc.read().decode("utf-8", errors="ignore")
-            except Exception:
-                err_body = ""
-            return False, f"Semaphore HTTP {exc.code}: {err_body[:200]}"
-        except urllib.error.URLError as exc:
-            return False, f"Semaphore URL error: {str(exc)}"
+        ok, err = _post_semaphore(form_data)
+        if ok:
+            return True, None
+        # If configured sender name is not active yet, retry once without sendername.
+        if semaphore_sender_name and err and "No active sender name found" in err:
+            fallback_data = {
+                "apikey": semaphore_api_key,
+                "number": phone,
+                "message": message_text,
+            }
+            ok2, err2 = _post_semaphore(fallback_data)
+            if ok2:
+                return True, None
+            return False, err2
+        return False, err
 
     if provider == "TWILIO":
-        twilio_sid = (os.environ.get("TWILIO_ACCOUNT_SID") or "").strip()
-        twilio_token = (os.environ.get("TWILIO_AUTH_TOKEN") or "").strip()
-        twilio_from = (os.environ.get("TWILIO_FROM_NUMBER") or "").strip()
-        twilio_messaging_service_sid = (os.environ.get("TWILIO_MESSAGING_SERVICE_SID") or "").strip()
+        twilio_sid = _get_env_value("TWILIO_ACCOUNT_SID")
+        twilio_token = _get_env_value("TWILIO_AUTH_TOKEN")
+        twilio_from = _get_env_value("TWILIO_FROM_NUMBER")
+        twilio_messaging_service_sid = _get_env_value("TWILIO_MESSAGING_SERVICE_SID")
         phone = _normalize_phone_number(service.svc_contact_number)
 
         if not twilio_sid or not twilio_token:
@@ -569,8 +667,8 @@ def _send_dispatch_sms(service, message_text: str) -> tuple[bool, str | None]:
         except urllib.error.URLError as exc:
             return False, f"Twilio URL error: {str(exc)}"
 
-    sms_api_url = os.environ.get("SMS_API_URL")
-    sms_api_key = os.environ.get("SMS_API_KEY")
+    sms_api_url = _get_env_value("SMS_API_URL")
+    sms_api_key = _get_env_value("SMS_API_KEY")
     phone = _normalize_phone_number(service.svc_contact_number)
     if not sms_api_url or not sms_api_key:
         return False, "SMS provider not configured"
@@ -912,9 +1010,9 @@ def admin_approvals_update(request):
 def admin_notifications(request):
     admin = _get_admin_for_request(request)
     if not admin:
-        return Response({"notifications": []}, status=200)
+        return Response({"message": "Unauthorized"}, status=401)
     if not isinstance(admin, Admin):
-        return Response({"notifications": []}, status=200)
+        return Response({"message": "Unauthorized"}, status=401)
 
     try:
         items = AdminNotification.objects.filter(admin=admin).order_by("-created_at")[:50]
@@ -1074,12 +1172,18 @@ def _service_flags_from_status(status_value: str) -> tuple[bool, bool]:
     return False, False
 
 
-def _service_type_from_description(description: str | None) -> str:
-    if not description:
-        return "Rescue"
-    if description.strip().lower() == "fire":
+def _service_type_from_description(description: str | None, name: str | None = None) -> str:
+    name_text = (name or "").strip().lower()
+    # Strong override: BFP/fire-named services should be Fire even if old data has Rescue.
+    if "bfp" in name_text or "fire" in name_text:
         return "Fire"
-    if description.strip().lower() == "rescue":
+    if "rescue" in name_text or "flood" in name_text:
+        return "Rescue"
+
+    desc = (description or "").strip().lower()
+    if desc == "fire":
+        return "Fire"
+    if desc in ("rescue", "flood", "flood/rescue"):
         return "Rescue"
     return "Rescue"
 
@@ -1095,7 +1199,7 @@ def officials_services_list(request):
     from services.models import Service
 
     services = []
-    qs = Service.objects.all()
+    qs = Service.objects.filter(svc_is_deleted=False)
     if official and not admin:
         barangay = (official.official_barangay or "").strip()
         if barangay:
@@ -1110,12 +1214,44 @@ def officials_services_list(request):
                 "phone": svc.svc_contact_number or "",
                 "email": svc.svc_email_address,
                 "address": svc.svc_location or "",
-                "type": _service_type_from_description(svc.svc_description),
+                "type": _service_type_from_description(svc.svc_description, svc.svc_name),
                 "status": _service_status_from_flags(svc.svc_is_active, svc.svc_is_deleted),
             }
         )
 
     return Response({"services": services}, status=200)
+
+
+@api_view(['GET'])
+def officials_services_registered(request):
+    official = _get_official_for_request(request)
+    admin = _get_admin_for_request(request)
+    service_user = _get_service_for_request(request)
+    if not admin and not service_user and (not official or not official.official_is_active or official.official_is_deleted):
+        return Response({"message": "Unauthorized"}, status=401)
+
+    from services.models import Service
+
+    # Only services that came from registration flow and were approved by Admin.
+    qs = Service.objects.filter(svc_is_deleted=False, svc_is_active=True)
+
+    items = []
+    for svc in qs:
+        if not User.objects.filter(username=svc.svc_email_address).exists():
+            continue
+        items.append(
+            {
+                "id": svc.svc_id,
+                "title": svc.svc_name,
+                "phone": svc.svc_contact_number or "",
+                "email": svc.svc_email_address,
+                "address": svc.svc_location or "",
+                "type": _service_type_from_description(svc.svc_description, svc.svc_name),
+                "status": _service_status_from_flags(svc.svc_is_active, svc.svc_is_deleted),
+            }
+        )
+
+    return Response({"services": items}, status=200)
 
 
 @api_view(['POST'])
@@ -1126,6 +1262,7 @@ def officials_services_create(request):
     if not admin and not service_user and (not official or not official.official_is_active or official.official_is_deleted):
         return Response({"message": "Unauthorized"}, status=401)
 
+    mode = (request.data.get("mode") or "manual").strip().lower()
     title = request.data.get("title") or ""
     phone = request.data.get("phone") or ""
     email = request.data.get("email") or ""
@@ -1133,24 +1270,90 @@ def officials_services_create(request):
     service_type = request.data.get("type") or "Rescue"
     status_value = request.data.get("status") or "Pending"
 
+    from services.models import Service
+
+    if mode == "automatic":
+        service_id = request.data.get("service_id")
+        if not service_id:
+            return Response({"message": "Missing service_id for automatic mode"}, status=400)
+        try:
+            svc = Service.objects.get(svc_id=service_id, svc_is_deleted=False)
+        except Service.DoesNotExist:
+            return Response({"message": "Registered service not found"}, status=404)
+        if not User.objects.filter(username=svc.svc_email_address).exists():
+            return Response({"message": "Selected service is not from registered services"}, status=400)
+        if official and not admin:
+            svc.svc_location = (official.official_barangay or svc.svc_location or "").strip()
+        svc.svc_is_active = True
+        svc.svc_is_deleted = False
+        svc.save(update_fields=["svc_location", "svc_is_active", "svc_is_deleted"])
+        return Response({"message": "Registered service activated", "id": svc.svc_id}, status=200)
+
     if not title or not email:
         return Response({"message": "Title and email required"}, status=400)
 
-    is_active, is_deleted = _service_flags_from_status(status_value)
+    normalized_title = (title or "").strip().lower()
+    normalized_phone = _normalize_phone_number(phone)
+    normalized_email = (email or "").strip().lower()
+    normalized_address = (address or "").strip().lower()
+    normalized_type = (service_type or "").strip().lower()
+
+    registered_qs = Service.objects.filter(
+        svc_is_deleted=False,
+        svc_email_address__in=User.objects.values_list("username", flat=True),
+    )
+    matched_registered = None
+    for candidate in registered_qs:
+        candidate_phone = _normalize_phone_number(candidate.svc_contact_number or "")
+        candidate_type = (
+            _service_type_from_description(candidate.svc_description, candidate.svc_name) or ""
+        ).strip().lower()
+        if (
+            (candidate.svc_name or "").strip().lower() == normalized_title
+            and (candidate.svc_email_address or "").strip().lower() == normalized_email
+            and candidate_phone == normalized_phone
+            and (candidate.svc_location or "").strip().lower() == normalized_address
+            and candidate_type == normalized_type
+        ):
+            matched_registered = candidate
+            break
+
+    # Manual add rule:
+    # Active only if details exactly match an already-registered service account.
+    manual_is_active = matched_registered is not None
+    is_active = manual_is_active
+    is_deleted = False
     if official and not admin:
         address = (official.official_barangay or address).strip()
 
-    from services.models import Service
-    svc = Service.objects.create(
-        svc_name=title,
-        svc_email_address=email,
-        svc_contact_number=phone,
-        svc_password="",
-        svc_location=address,
-        svc_description=service_type,
-        svc_is_active=is_active,
-        svc_is_deleted=is_deleted,
-    )
+    existing_email = Service.objects.filter(svc_email_address=email).first()
+    if existing_email:
+        svc = existing_email
+        svc.svc_name = title
+        svc.svc_contact_number = phone
+        svc.svc_location = address
+        svc.svc_description = service_type
+        svc.svc_is_active = is_active
+        svc.svc_is_deleted = is_deleted
+        svc.save(update_fields=[
+            "svc_name",
+            "svc_contact_number",
+            "svc_location",
+            "svc_description",
+            "svc_is_active",
+            "svc_is_deleted",
+        ])
+    else:
+        svc = Service.objects.create(
+            svc_name=title,
+            svc_email_address=email,
+            svc_contact_number=phone,
+            svc_password="",
+            svc_location=address,
+            svc_description=service_type,
+            svc_is_active=is_active,
+            svc_is_deleted=is_deleted,
+        )
 
     return Response({"message": "Created", "id": svc.svc_id}, status=201)
 
@@ -1177,7 +1380,7 @@ def officials_services_update(request):
     phone = request.data.get("phone") or svc.svc_contact_number
     email = request.data.get("email") or svc.svc_email_address
     address = request.data.get("address") or svc.svc_location
-    service_type = request.data.get("type") or _service_type_from_description(svc.svc_description)
+    service_type = request.data.get("type") or _service_type_from_description(svc.svc_description, svc.svc_name)
     status_value = request.data.get("status") or _service_status_from_flags(svc.svc_is_active, svc.svc_is_deleted)
 
     is_active, is_deleted = _service_flags_from_status(status_value)
@@ -1703,6 +1906,10 @@ def officials_notifications(request):
 
 @api_view(['POST'])
 def ai_chat(request):
+    official = _get_official_for_request(request)
+    admin = _get_admin_for_request(request)
+    if not official and not admin:
+        return Response({"message": "Unauthorized"}, status=401)
     prompt = request.data.get("message") or request.data.get("prompt") or ""
     return Response({"reply": "AI service not configured", "echo": prompt}, status=200)
 
@@ -1717,6 +1924,7 @@ def logout(request):
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def login(request):
     email = request.data.get('email')
     password = request.data.get('password')
@@ -1728,49 +1936,14 @@ def login(request):
 
     refresh = RefreshToken.for_user(user)
 
-    role = "Resident"
-    is_active = True
-
-    # Admin takes priority
-    if user.is_superuser or user.is_staff or email.lower() == "admin@smartbash.com":
-        role = "Admin"
-        is_active = True
-    else:
-        try:
-            admin = Admin.objects.get(admin_email_address=email)
-            role = "Admin"
-            is_active = True
-        except (Admin.DoesNotExist, ProgrammingError):
-            pass
-    
-    if role != "Admin":
-        try:
-            resident = Resident.objects.get(res_email_address=email)
-            role = "Resident"
-            is_active = resident.res_is_active and not resident.res_is_deleted
-        except (Resident.DoesNotExist, ProgrammingError):
-            pass
-
-    if role != "Admin":
-        try:
-            from officials.models import BrgyOfficial
-            official = BrgyOfficial.objects.get(official_email_address=email)
-            role = "BrgyOfficials"
-            is_active = official.official_is_active and not official.official_is_deleted
-        except Exception:
-            pass
-
-    if role != "Admin":
-        try:
-            from services.models import Service
-            service = Service.objects.get(svc_email_address=email)
-            role = "Services"
-            is_active = service.svc_is_active and not service.svc_is_deleted
-        except Exception:
-            pass
+    role, is_active = _resolve_role_for_email(email)
+    if user.is_superuser or user.is_staff:
+        role, is_active = "Admin", True
 
     if role != "Admin" and not is_active:
         return Response({"message": "Account pending approval"}, status=403)
+
+    refresh["role"] = role
 
     response = Response({
         "message": "Login successful",
@@ -2079,6 +2252,7 @@ def services_password_update(request):
 
 
 @api_view(['POST'])
+@permission_classes([AllowAny])
 def token_refresh(request):
     refresh = request.data.get('refresh')
     if not refresh:
@@ -2086,9 +2260,25 @@ def token_refresh(request):
     
     try:
         refresh_token = RefreshToken(refresh)
-        return Response({
-            "access": str(refresh_token.access_token)
-        }, status=200)
+        role = refresh_token.payload.get("role")
+        if not role:
+            user_id = refresh_token.payload.get("user_id")
+            if user_id:
+                user = User.objects.filter(id=user_id).first()
+                if user:
+                    role, _ = _resolve_role_for_email(user.email or user.username or "")
+        if role:
+            refresh_token["role"] = role
+        access = refresh_token.access_token
+        if role:
+            access["role"] = role
+        return Response(
+            {
+                "access": str(access),
+                "role": role,
+            },
+            status=200,
+        )
     except Exception as e:
         return Response(
             {"message": "Invalid or expired refresh token"},
