@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Incident } from "../../../components/core-ui/services-components/ServicesMap";
 import { apiFetch } from "@/lib/api";
-import { clearAuthTokens } from "@/lib/auth";
+import { clearAuthTokens } from "@/lib/auth.client";
 
 
 const ServicesMap = dynamic(

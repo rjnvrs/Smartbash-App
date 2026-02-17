@@ -58,6 +58,22 @@ export default function ServicesForm({
         }
       />
 
+      <div className="grid gap-2">
+        <label className="block text-sm font-medium text-gray-700">
+          Service Type<span className="text-red-500 ml-1">*</span>
+        </label>
+        <select
+          value={formData.serviceType || ""}
+          onChange={(e) => updateField("serviceType", e.target.value)}
+          className="border border-gray-300 rounded-md px-4 py-2.5 w-full focus:outline-none focus:ring-2 focus:ring-green-500 h-12 text-md bg-white"
+          required
+        >
+          <option value="">Select service type</option>
+          <option value="Fire">Fire</option>
+          <option value="Rescue">Flood/Rescue</option>
+        </select>
+      </div>
+
       <InputField
         type="password"
         label="Password"

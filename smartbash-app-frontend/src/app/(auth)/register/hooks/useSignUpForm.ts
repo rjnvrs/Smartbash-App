@@ -20,6 +20,7 @@ export interface FormData {
   location: string;
   barangayName: string;
   contact: string;
+  serviceType: string;
   proofofAuthority?: File | null;
 }
 
@@ -44,6 +45,7 @@ export function useSignUpForm() {
     location: "",
     barangayName: "",
     contact: "",
+    serviceType: "",
   });
 
   const updateField = (field: keyof FormData, value: string) => {
@@ -66,6 +68,7 @@ export function useSignUpForm() {
       location: "",
       barangayName: "",
       contact: "",
+      serviceType: "",
     });
     setFiles(null);
   };
@@ -99,6 +102,7 @@ export function useSignUpForm() {
     form.append("name", formData.name || "");
     form.append("barangayName", formData.barangayName || "");
     form.append("contact", formData.contact || "");
+    form.append("serviceType", formData.serviceType || "");
 
     if (files) {
       form.append("proofofAuthority", files);

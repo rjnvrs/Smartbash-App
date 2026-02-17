@@ -6,7 +6,7 @@ import CategoryFilter from "../CategoryFilter";
 import StatusFilter from "../../../ui/StatusFilter";
 import ServiceModal, { ServiceFormData } from "./ServiceModal";
 import DeleteModal from "./DeleteModal";
-import { Service } from "@/app/dashboards/officials/services/page";
+import { RegisteredServiceOption, Service } from "@/app/dashboards/officials/services/page";
 import {
   Edit2,
   Plus,
@@ -27,8 +27,10 @@ interface ActionBarProps {
   setSelectedService: (service: Service | null) => void;
 
   onAdd: (service: Omit<Service, "id">) => void;
+  onAddAutomatic: (serviceId: number) => void;
   onEdit: (service: Service) => void;
   onDelete: (id: number) => void;
+  registeredOptions: RegisteredServiceOption[];
 
   searchQuery: string;            // <-- must always be string
   setSearchQuery: (value: string) => void;
@@ -64,8 +66,10 @@ export default function ActionBar({
   selectedService,
   setSelectedService,
   onAdd,
+  onAddAutomatic,
   onEdit,
   onDelete,
+  registeredOptions,
   searchQuery,
   setSearchQuery,
   selectedCategory,
@@ -77,6 +81,8 @@ export default function ActionBar({
   const [modalMode, setModalMode] = useState<"add" | "edit">("add");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  const [showAddOptions, setShowAddOptions] = useState(false);
+  const [selectedRegisteredId, setSelectedRegisteredId] = useState<number | "">("");
 
   const hasActiveFilters =
     selectedCategory !== "All" || selectedStatus !== "All";
@@ -239,9 +245,7 @@ export default function ActionBar({
         {/* ADD BUTTON */}
         <button
           onClick={() => {
-            setSelectedService(null);
-            setModalMode("add");
-            setShowModal(true);
+            setShowAddOptions(true);
           }}
           className="px-6 h-11 rounded-xl bg-green-500 text-white flex items-center gap-2 hover:bg-green-600"
         >
@@ -270,6 +274,76 @@ export default function ActionBar({
           onClose={() => setShowDeleteModal(false)}
           onConfirm={handleDelete}
         />
+      )}
+
+      {showAddOptions && (
+        <div
+          className="fixed inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setShowAddOptions(false)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4">Add Service Options</h3>
+            <p className="text-sm text-gray-600 mb-5">
+              Choose manual input or activate an already registered service account.
+            </p>
+
+            <button
+              onClick={() => {
+                setShowAddOptions(false);
+                setSelectedService(null);
+                setModalMode("add");
+                setShowModal(true);
+              }}
+              className="w-full h-11 rounded-xl bg-green-500 text-white hover:bg-green-600 mb-4"
+            >
+              Add Manually
+            </button>
+
+            <div className="border rounded-xl p-4 bg-gray-50">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Automatic (Registered Services)
+              </label>
+              <select
+                className="w-full h-10 border rounded-lg px-3 bg-white"
+                value={selectedRegisteredId}
+                onChange={(e) =>
+                  setSelectedRegisteredId(e.target.value ? Number(e.target.value) : "")
+                }
+              >
+                <option value="">Select registered service...</option>
+                {registeredOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.title} - {opt.email}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => {
+                  if (!selectedRegisteredId) {
+                    alert("Please select a registered service");
+                    return;
+                  }
+                  onAddAutomatic(Number(selectedRegisteredId));
+                  setShowAddOptions(false);
+                  setSelectedRegisteredId("");
+                }}
+                className="w-full mt-3 h-10 rounded-lg border border-green-500 text-green-700 hover:bg-green-50"
+              >
+                Add Automatically
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowAddOptions(false)}
+              className="w-full mt-4 h-10 rounded-lg bg-gray-200 hover:bg-gray-300"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
     </>
   );

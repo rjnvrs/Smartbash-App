@@ -22,8 +22,19 @@ export interface Service {
   variant: ServiceVariant;
 }
 
+export interface RegisteredServiceOption {
+  id: number;
+  title: string;
+  phone: string;
+  email: string;
+  address: string;
+  type: "Fire" | "Rescue";
+  status: ServiceStatus;
+}
+
 export default function Services() {
   const [services, setServices] = useState<Service[]>([]);
+  const [registeredOptions, setRegisteredOptions] = useState<RegisteredServiceOption[]>([]);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -51,6 +62,21 @@ export default function Services() {
         variant: s.type === "Fire" ? "firetruck" : "rescue",
       }));
       setServices(list);
+
+      const regRes = await apiFetch("/auth/officials/services/registered/", { method: "GET" });
+      const regData = await regRes.json();
+      if (regRes.ok) {
+        const regList: RegisteredServiceOption[] = (regData.services || []).map((s: any) => ({
+          id: s.id,
+          title: s.title,
+          phone: s.phone || "",
+          email: s.email || "",
+          address: s.address || "",
+          type: s.type === "Fire" ? "Fire" : "Rescue",
+          status: s.status,
+        }));
+        setRegisteredOptions(regList);
+      }
     } catch (err: any) {
       setError(err.message || "Failed to load services");
     } finally {
@@ -67,6 +93,7 @@ export default function Services() {
       const res = await apiFetch("/auth/officials/services/create/", {
         method: "POST",
         body: JSON.stringify({
+          mode: "manual",
           title: newService.title,
           phone: newService.phone,
           email: newService.email,
@@ -80,6 +107,23 @@ export default function Services() {
       await loadServices();
     } catch (err: any) {
       setError(err.message || "Create failed");
+    }
+  };
+
+  const handleAddServiceAutomatic = async (serviceId: number) => {
+    try {
+      const res = await apiFetch("/auth/officials/services/create/", {
+        method: "POST",
+        body: JSON.stringify({
+          mode: "automatic",
+          service_id: serviceId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Automatic add failed");
+      await loadServices();
+    } catch (err: any) {
+      setError(err.message || "Automatic add failed");
     }
   };
 
@@ -179,8 +223,10 @@ export default function Services() {
           selectedService={selectedService}
           setSelectedService={setSelectedService}
           onAdd={handleAddService}
+          onAddAutomatic={handleAddServiceAutomatic}
           onEdit={handleEditService}
           onDelete={handleDeleteService}
+          registeredOptions={registeredOptions}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
           selectedCategory={selectedCategory}

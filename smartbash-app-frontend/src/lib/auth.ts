@@ -1,33 +1,29 @@
-import { API_BASE } from "@/lib/api";
-import { clearCookie, getCookie, setCookie } from "@/lib/cookies";
+import { cookies } from "next/headers";
 
-export function saveAuthTokens(access: string, refresh: string) {
-  setCookie("access_token", access, 60 * 60 * 24);
-  setCookie("refresh_token", refresh, 60 * 60 * 24 * 7);
-}
+export type UserRole = "Resident" | "Services" | "BrgyOfficials" | "Admin";
 
-export function getAccessToken() {
-  return getCookie("access_token");
-}
-
-export function clearAuthTokens() {
-  clearCookie("access_token");
-  clearCookie("refresh_token");
-  clearCookie("user_role");
-}
-
-export async function logout() {
+function decodeJwtPayload(token: string): Record<string, any> | null {
   try {
-    await fetch(`${API_BASE}/auth/logout/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-    });
-  } finally {
-    clearAuthTokens();
+    const parts = token.split(".");
+    if (parts.length < 2) return null;
+    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = payload.padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    const json = Buffer.from(padded, "base64").toString("utf-8");
+    return JSON.parse(json);
+  } catch {
+    return null;
   }
 }
 
-export function isAuthenticated() {
-  return !!getCookie("access_token");
+export async function getCurrentUser() {
+  const cookieStore = await cookies();
+  const token = cookieStore.get("access_token")?.value;
+  const payload = token ? decodeJwtPayload(token) : null;
+  const tokenRole = payload?.role as UserRole | undefined;
+  const role = tokenRole;
+  const exp = Number(payload?.exp || 0);
+
+  if (!token || !role || !exp || exp * 1000 <= Date.now()) return null;
+
+  return { token, role };
 }

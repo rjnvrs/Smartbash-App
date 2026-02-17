@@ -35,7 +35,7 @@ export const validateForm = (role: string, formData: any, file?: File | null) =>
   }
 
   if (role === "Services") {
-    if (!formData.name || !formData.location || !formData.email)
+    if (!formData.name || !formData.location || !formData.email || !formData.serviceType)
       return "Please fill all services fields";
   }
 

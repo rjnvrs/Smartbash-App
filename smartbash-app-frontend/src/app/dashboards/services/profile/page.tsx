@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, User, Lock, LogOut, Upload } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-import { clearAuthTokens } from "@/lib/auth";
+import { clearAuthTokens } from "@/lib/auth.client";
 
 export default function ServiceProfilePage() {
   const router = useRouter();

@@ -44,6 +44,9 @@ async function refreshAccessToken() {
     const data = await res.json();
     if (data?.access) {
       setCookie("access_token", data.access, 60 * 60 * 24);
+      if (data?.role) {
+        setCookie("user_role", data.role, 60 * 60 * 24);
+      }
     }
     return data.access;
   } catch (error) {
