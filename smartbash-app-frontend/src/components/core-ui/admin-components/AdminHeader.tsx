@@ -4,7 +4,7 @@ import { LogOut, Bell, User, Settings, CheckCircle, XCircle, Clock } from "lucid
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { apiFetch, parseJsonSafe } from "@/lib/api";
-import { clearAuthTokens } from "@/lib/auth";
+import { clearAuthTokens } from "@/lib/auth.client";
 
 export default function AdminHeader() {
   const router = useRouter();
