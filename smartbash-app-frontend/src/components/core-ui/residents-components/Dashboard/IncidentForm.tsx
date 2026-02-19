@@ -6,7 +6,6 @@ import dynamic from "next/dynamic"
 import Camera from "./Camera"
 import { MapPin, Upload, Send, Flame, Waves } from "lucide-react"
 
-/* Load map only on client */
 const IncidentMap = dynamic(() => import("./IncidentMap"), { ssr: false })
 
 type IncidentType = "Fire" | "Flood"
@@ -14,7 +13,9 @@ type IncidentType = "Fire" | "Flood"
 export default function IncidentForm() {
   const router = useRouter()
 
-  const [incidentType, setIncidentType] = useState<IncidentType>("Fire")
+  /* DEFAULT INCIDENT TYPE (NOT CLICKABLE) */
+  const incidentType: IncidentType = "Fire"
+
   const [description, setDescription] = useState("")
   const [location, setLocation] = useState("")
   const [mapCenter, setMapCenter] = useState<[number, number]>([14.5995, 120.9842])
@@ -26,7 +27,8 @@ export default function IncidentForm() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
-  /* ===== CAMERA ===== */
+  /* ================= CAMERA ================= */
+
   const startCamera = async () => {
     setCapturing(true)
     try {
@@ -54,9 +56,9 @@ export default function IncidentForm() {
     if (!ctx) return
 
     ctx.drawImage(video, 0, 0)
-    setImages((p) => [...p, canvas.toDataURL("image/png")])
+    setImages((prev) => [...prev, canvas.toDataURL("image/png")])
 
-    ;(video.srcObject as MediaStream).getTracks().forEach((t) => t.stop())
+    ;(video.srcObject as MediaStream)?.getTracks()?.forEach((t) => t.stop())
     video.srcObject = null
     setCapturing(false)
   }
@@ -65,11 +67,13 @@ export default function IncidentForm() {
     ;(videoRef.current?.srcObject as MediaStream | null)
       ?.getTracks()
       ?.forEach((t) => t.stop())
+
     if (videoRef.current) videoRef.current.srcObject = null
     setCapturing(false)
   }
 
-  /* ===== LOCATION SEARCH + DROPDOWN ===== */
+  /* ================= LOCATION SEARCH ================= */
+
   const autoSearchWhileTyping = async (value: string) => {
     setLocation(value)
 
@@ -93,59 +97,83 @@ export default function IncidentForm() {
     }, 400)
   }
 
-  /* ===== SUBMIT REPORT ===== */
+  /* ================= SUBMIT ================= */
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
 
+    const now = Date.now()
+
     const report = {
-      id: Date.now(),
+      id: now,
       type: incidentType.toLowerCase(),
       status: "waiting",
       description,
       location,
       images,
-      createdAt: Date.now(),
+      createdAt: now,
     }
 
-    const existing = JSON.parse(localStorage.getItem("incident_reports") || "[]")
-    localStorage.setItem("incident_reports", JSON.stringify([report, ...existing]))
+    /* SAVE INCIDENT REPORT */
+    const existingReports = JSON.parse(
+      localStorage.getItem("incident_reports") || "[]"
+    )
 
+    localStorage.setItem(
+      "incident_reports",
+      JSON.stringify([report, ...existingReports])
+    )
+
+    /* CREATE NEWSFEED POST */
+    const newsPost = {
+      id: now,
+      author: "Resident",
+      time: "Just now",
+      postType: "EVENT",
+      incidentType: incidentType,
+      location: location || undefined,
+      content: description,
+      image: images[0] || undefined,
+      interested: false,
+      saved: false,
+      comments: [], // keep compatible with comment system
+    }
+
+    const existingNews = JSON.parse(
+      localStorage.getItem("newsfeed") || "[]"
+    )
+
+    localStorage.setItem(
+      "newsfeed",
+      JSON.stringify([newsPost, ...existingNews])
+    )
+
+    /* RESET FORM */
     setDescription("")
     setLocation("")
     setImages([])
-    setIncidentType("Fire")
 
-    router.push("/dashboards/residents/reports")
+    router.push("/dashboards/residents/news-feed")
   }
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-start px-4 py-10">
       <div className="max-w-3xl w-full bg-white rounded-2xl shadow-xl p-8 mt-6">
-        <h2 className="text-xl font-semibold mb-6">Report an Environmental Incident</h2>
+        <h2 className="text-xl font-semibold mb-6">
+          Report an Environmental Incident
+        </h2>
 
-        {/* INCIDENT TYPE */}
+        {/* INCIDENT TYPE (NOT CLICKABLE) */}
         <div className="flex gap-6 mb-6">
-          <button
-            type="button"
-            onClick={() => setIncidentType("Fire")}
-            className={`flex-1 p-6 rounded-xl border ${
-              incidentType === "Fire" ? "bg-red-100 border-red-400" : "bg-red-50"
-            }`}
-          >
+          <div className="flex-1 p-6 rounded-xl border bg-red-100 border-red-400">
             <Flame className="mx-auto text-red-600" />
-            Fire
-          </button>
+            <p className="text-center mt-2 font-medium">Fire</p>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setIncidentType("Flood")}
-            className={`flex-1 p-6 rounded-xl border ${
-              incidentType === "Flood" ? "bg-blue-100 border-blue-400" : "bg-blue-50"
-            }`}
-          >
+          <div className="flex-1 p-6 rounded-xl border bg-blue-100 border-blue-400">
             <Waves className="mx-auto text-blue-600" />
-            Flood
-          </button>
+            <p className="text-center mt-2 font-medium">Flood</p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit}>
@@ -158,25 +186,28 @@ export default function IncidentForm() {
             required
           />
 
-          {/* LOCATION + DROPDOWN */}
+          {/* LOCATION */}
           <div className="flex gap-2 mb-4 relative">
             <div className="relative flex-1 z-[1000]">
               <input
                 value={location}
                 onChange={(e) => autoSearchWhileTyping(e.target.value)}
-                className="w-full border rounded-xl p-3 relative z-[1000]"
+                className="w-full border rounded-xl p-3"
                 placeholder="Barangay, street, city"
               />
 
               {suggestions.length > 0 && (
-                <div className="absolute top-full left-0 bg-white border rounded-xl shadow-lg w-full max-h-48 overflow-auto z-[1000]">
+                <div className="absolute top-full left-0 bg-white border rounded-xl shadow-lg w-full max-h-48 overflow-auto">
                   {suggestions.map((s, i) => (
                     <div
                       key={i}
                       className="p-2 hover:bg-gray-100 cursor-pointer text-sm"
                       onClick={() => {
                         setLocation(s.display_name)
-                        setMapCenter([parseFloat(s.lat), parseFloat(s.lon)])
+                        setMapCenter([
+                          parseFloat(s.lat),
+                          parseFloat(s.lon),
+                        ])
                         setSuggestions([])
                       }}
                     >
@@ -191,22 +222,24 @@ export default function IncidentForm() {
               type="button"
               onClick={() =>
                 window.open(
-                  `https://www.openstreetmap.org/search?query=${encodeURIComponent(location)}`,
+                  `https://www.openstreetmap.org/search?query=${encodeURIComponent(
+                    location
+                  )}`,
                   "_blank"
                 )
               }
-              className="px-4 bg-gray-700 text-white rounded-xl z-[1000]"
+              className="px-4 bg-gray-700 text-white rounded-xl"
             >
               <MapPin />
             </button>
           </div>
 
-          {/* MAP (always mounted to prevent _leaflet_pos error) */}
+          {/* MAP */}
           <div className={`${capturing ? "hidden" : "block"} mb-6`}>
             <IncidentMap mapCenter={mapCenter} setLocation={setLocation} />
           </div>
 
-          {/* CAMERA TRIGGER */}
+          {/* PHOTO AREA */}
           <div
             onClick={() => !capturing && startCamera()}
             className="border-2 border-dashed rounded-xl p-6 text-center mb-6 cursor-pointer"
@@ -218,12 +251,12 @@ export default function IncidentForm() {
             ) : (
               <>
                 <Upload className="mx-auto mb-2" />
-                Click to take photo of the {incidentType.toLowerCase()}
+                Click to take photo of the fire
               </>
             )}
           </div>
 
-          {/* CAMERA OVERLAY */}
+          {/* CAMERA */}
           {capturing && (
             <Camera
               videoRef={videoRef}
@@ -235,7 +268,10 @@ export default function IncidentForm() {
           <canvas ref={canvasRef} className="hidden" />
 
           {/* SUBMIT */}
-          <button type="submit" className="w-full bg-black text-white py-3 rounded-xl">
+          <button
+            type="submit"
+            className="w-full bg-black text-white py-3 rounded-xl"
+          >
             <Send className="inline mr-2" />
             Submit Report
           </button>
