@@ -17,9 +17,7 @@ export default function IncidentForm() {
 
   const [description, setDescription] = useState("")
   const [location, setLocation] = useState("")
-  const [mapCenter, setMapCenter] = useState<[number, number]>([
-    14.5995, 120.9842,
-  ])
+  const [mapCenter, setMapCenter] = useState<[number, number]>([14.5995, 120.9842])
   const [images, setImages] = useState<string[]>([])
   const [capturing, setCapturing] = useState(false)
   const [suggestions, setSuggestions] = useState<any[]>([])
@@ -28,28 +26,23 @@ export default function IncidentForm() {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
 
-  /* ================= STORAGE CONFIG ================= */
+  /* ================= STORAGE PROTECTION ================= */
 
-  const MAX_REPORTS = 20
-  const MAX_NEWS = 30
-
-  const safeSetToStorage = (key: string, value: any, limit: number) => {
+  const safeSetToStorage = (key: string, value: any) => {
     try {
-      const trimmed =
-        Array.isArray(value) ? value.slice(0, limit) : value
-
-      localStorage.setItem(key, JSON.stringify(trimmed))
+      localStorage.setItem(key, JSON.stringify(value))
     } catch (err) {
-      console.warn("Storage full. Clearing old data...")
+      console.warn("Storage full. Cleaning oldest data...")
 
-      try {
-        localStorage.removeItem(key)
-        localStorage.setItem(
-          key,
-          JSON.stringify(Array.isArray(value) ? value.slice(0, 5) : value)
-        )
-      } catch {
-        alert("Storage completely full. Please clear browser storage.")
+      const existing = JSON.parse(localStorage.getItem(key) || "[]")
+
+      if (Array.isArray(existing) && existing.length > 0) {
+        existing.pop()
+        try {
+          localStorage.setItem(key, JSON.stringify(existing))
+        } catch {
+          alert("Storage completely full. Please clear browser storage.")
+        }
       }
     }
   }
@@ -79,22 +72,21 @@ export default function IncidentForm() {
 
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
-
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
     ctx.drawImage(video, 0, 0)
 
-    // Always compress strongly
-    const compressedImage = canvas.toDataURL("image/jpeg", 0.3)
+    const originalImage = canvas.toDataURL("image/png")
 
-    // Only allow 1 image
-    setImages([compressedImage])
+    const compressedImage =
+      originalImage.length > 500000
+        ? canvas.toDataURL("image/jpeg", 0.4)
+        : originalImage
 
-    ;(video.srcObject as MediaStream)
-      ?.getTracks()
-      ?.forEach((t) => t.stop())
+    setImages((prev) => [...prev, compressedImage])
 
+    ;(video.srcObject as MediaStream)?.getTracks()?.forEach((t) => t.stop())
     video.srcObject = null
     setCapturing(false)
   }
@@ -146,7 +138,7 @@ export default function IncidentForm() {
       status: "waiting",
       description,
       location,
-      images, // already limited to 1
+      images,
       createdAt: now,
     }
 
@@ -154,13 +146,12 @@ export default function IncidentForm() {
       localStorage.getItem("incident_reports") || "[]"
     )
 
-    const updatedReports = [report, ...existingReports]
-
-    safeSetToStorage(
+    localStorage.setItem(
       "incident_reports",
-      updatedReports,
-      MAX_REPORTS
+      JSON.stringify([report, ...existingReports])
     )
+
+    safeSetToStorage("incident_reports", [report, ...existingReports])
 
     const newsPost = {
       id: now,
@@ -180,9 +171,12 @@ export default function IncidentForm() {
       localStorage.getItem("newsfeed") || "[]"
     )
 
-    const updatedNews = [newsPost, ...existingNews]
+    localStorage.setItem(
+      "newsfeed",
+      JSON.stringify([newsPost, ...existingNews])
+    )
 
-    safeSetToStorage("newsfeed", updatedNews, MAX_NEWS)
+    safeSetToStorage("newsfeed", [newsPost, ...existingNews])
 
     setDescription("")
     setLocation("")
@@ -190,8 +184,6 @@ export default function IncidentForm() {
 
     router.push("/dashboards/residents/news-feed")
   }
-
-  /* ================= UI ================= */
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-start px-4 py-10">
@@ -213,6 +205,8 @@ export default function IncidentForm() {
         </div>
 
         <form onSubmit={handleSubmit}>
+
+          {/* DESCRIPTION SECTION */}
           <label className="block font-semibold mb-2">
             Incident Description
           </label>
@@ -221,6 +215,7 @@ export default function IncidentForm() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="w-full h-28 border rounded-xl p-4 mb-2"
+            placeholder="Please describe the fire or flood incident you are currently observing. Example: There is flooding in our area. / There is a fire nearby."
             required
           />
 
@@ -232,9 +227,7 @@ export default function IncidentForm() {
             <div className="relative flex-1 z-[1000]">
               <input
                 value={location}
-                onChange={(e) =>
-                  autoSearchWhileTyping(e.target.value)
-                }
+                onChange={(e) => autoSearchWhileTyping(e.target.value)}
                 className="w-full border rounded-xl p-3"
                 placeholder="Barangay, street, city"
               />
@@ -277,31 +270,23 @@ export default function IncidentForm() {
             </button>
           </div>
 
-          <div
-            className={`${
-              capturing ? "hidden" : "block"
-            } mb-6`}
-          >
-            <IncidentMap
-              mapCenter={mapCenter}
-              setLocation={setLocation}
-            />
+          <div className={`${capturing ? "hidden" : "block"} mb-6`}>
+            <IncidentMap mapCenter={mapCenter} setLocation={setLocation} />
           </div>
 
+          {/* IMAGE SECTION */}
           <div
             onClick={() => !capturing && startCamera()}
             className="border-2 border-dashed rounded-xl p-6 text-center mb-6 cursor-pointer"
           >
             {images.length ? (
-              <img
-                src={images[0]}
-                className="rounded-xl"
-              />
+              images.map((img, i) => (
+                <img key={i} src={img} className="rounded-xl mb-2" />
+              ))
             ) : (
               <>
                 <Upload className="mx-auto mb-2" />
-                Click to take photo of the{" "}
-                {incidentType.toLowerCase()}
+                Click to take photo of the {incidentType.toLowerCase()}
               </>
             )}
           </div>
