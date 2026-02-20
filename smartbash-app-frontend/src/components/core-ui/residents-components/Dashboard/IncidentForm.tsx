@@ -13,12 +13,13 @@ type IncidentType = "Fire" | "Flood"
 export default function IncidentForm() {
   const router = useRouter()
 
-  /* DEFAULT INCIDENT TYPE (NOT CLICKABLE) */
   const incidentType: IncidentType = "Fire"
 
   const [description, setDescription] = useState("")
   const [location, setLocation] = useState("")
-  const [mapCenter, setMapCenter] = useState<[number, number]>([14.5995, 120.9842])
+  const [mapCenter, setMapCenter] = useState<[number, number]>([
+    14.5995, 120.9842,
+  ])
   const [images, setImages] = useState<string[]>([])
   const [capturing, setCapturing] = useState(false)
   const [suggestions, setSuggestions] = useState<any[]>([])
@@ -26,6 +27,32 @@ export default function IncidentForm() {
   const typingTimeout = useRef<NodeJS.Timeout | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
+
+  /* ================= STORAGE CONFIG ================= */
+
+  const MAX_REPORTS = 20
+  const MAX_NEWS = 30
+
+  const safeSetToStorage = (key: string, value: any, limit: number) => {
+    try {
+      const trimmed =
+        Array.isArray(value) ? value.slice(0, limit) : value
+
+      localStorage.setItem(key, JSON.stringify(trimmed))
+    } catch (err) {
+      console.warn("Storage full. Clearing old data...")
+
+      try {
+        localStorage.removeItem(key)
+        localStorage.setItem(
+          key,
+          JSON.stringify(Array.isArray(value) ? value.slice(0, 5) : value)
+        )
+      } catch {
+        alert("Storage completely full. Please clear browser storage.")
+      }
+    }
+  }
 
   /* ================= CAMERA ================= */
 
@@ -52,13 +79,22 @@ export default function IncidentForm() {
 
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
+
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
     ctx.drawImage(video, 0, 0)
-    setImages((prev) => [...prev, canvas.toDataURL("image/png")])
 
-    ;(video.srcObject as MediaStream)?.getTracks()?.forEach((t) => t.stop())
+    // Always compress strongly
+    const compressedImage = canvas.toDataURL("image/jpeg", 0.3)
+
+    // Only allow 1 image
+    setImages([compressedImage])
+
+    ;(video.srcObject as MediaStream)
+      ?.getTracks()
+      ?.forEach((t) => t.stop())
+
     video.srcObject = null
     setCapturing(false)
   }
@@ -110,21 +146,22 @@ export default function IncidentForm() {
       status: "waiting",
       description,
       location,
-      images,
+      images, // already limited to 1
       createdAt: now,
     }
 
-    /* SAVE INCIDENT REPORT */
     const existingReports = JSON.parse(
       localStorage.getItem("incident_reports") || "[]"
     )
 
-    localStorage.setItem(
+    const updatedReports = [report, ...existingReports]
+
+    safeSetToStorage(
       "incident_reports",
-      JSON.stringify([report, ...existingReports])
+      updatedReports,
+      MAX_REPORTS
     )
 
-    /* CREATE NEWSFEED POST */
     const newsPost = {
       id: now,
       author: "Resident",
@@ -136,25 +173,25 @@ export default function IncidentForm() {
       image: images[0] || undefined,
       interested: false,
       saved: false,
-      comments: [], // keep compatible with comment system
+      comments: [],
     }
 
     const existingNews = JSON.parse(
       localStorage.getItem("newsfeed") || "[]"
     )
 
-    localStorage.setItem(
-      "newsfeed",
-      JSON.stringify([newsPost, ...existingNews])
-    )
+    const updatedNews = [newsPost, ...existingNews]
 
-    /* RESET FORM */
+    safeSetToStorage("newsfeed", updatedNews, MAX_NEWS)
+
     setDescription("")
     setLocation("")
     setImages([])
 
     router.push("/dashboards/residents/news-feed")
   }
+
+  /* ================= UI ================= */
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center items-start px-4 py-10">
@@ -163,7 +200,6 @@ export default function IncidentForm() {
           Report an Environmental Incident
         </h2>
 
-        {/* INCIDENT TYPE (NOT CLICKABLE) */}
         <div className="flex gap-6 mb-6">
           <div className="flex-1 p-6 rounded-xl border bg-red-100 border-red-400">
             <Flame className="mx-auto text-red-600" />
@@ -177,21 +213,28 @@ export default function IncidentForm() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          {/* DESCRIPTION */}
+          <label className="block font-semibold mb-2">
+            Incident Description
+          </label>
+
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full h-28 border rounded-xl p-4 mb-4"
-            placeholder="Describe the incident"
+            className="w-full h-28 border rounded-xl p-4 mb-2"
             required
           />
 
-          {/* LOCATION */}
+          <p className="text-xs text-yellow-500 mb-4">
+            ⚠ Only fire or flood incidents will be accepted.
+          </p>
+
           <div className="flex gap-2 mb-4 relative">
             <div className="relative flex-1 z-[1000]">
               <input
                 value={location}
-                onChange={(e) => autoSearchWhileTyping(e.target.value)}
+                onChange={(e) =>
+                  autoSearchWhileTyping(e.target.value)
+                }
                 className="w-full border rounded-xl p-3"
                 placeholder="Barangay, street, city"
               />
@@ -234,29 +277,35 @@ export default function IncidentForm() {
             </button>
           </div>
 
-          {/* MAP */}
-          <div className={`${capturing ? "hidden" : "block"} mb-6`}>
-            <IncidentMap mapCenter={mapCenter} setLocation={setLocation} />
+          <div
+            className={`${
+              capturing ? "hidden" : "block"
+            } mb-6`}
+          >
+            <IncidentMap
+              mapCenter={mapCenter}
+              setLocation={setLocation}
+            />
           </div>
 
-          {/* PHOTO AREA */}
           <div
             onClick={() => !capturing && startCamera()}
             className="border-2 border-dashed rounded-xl p-6 text-center mb-6 cursor-pointer"
           >
             {images.length ? (
-              images.map((img, i) => (
-                <img key={i} src={img} className="rounded-xl mb-2" />
-              ))
+              <img
+                src={images[0]}
+                className="rounded-xl"
+              />
             ) : (
               <>
                 <Upload className="mx-auto mb-2" />
-                Click to take photo of the fire
+                Click to take photo of the{" "}
+                {incidentType.toLowerCase()}
               </>
             )}
           </div>
 
-          {/* CAMERA */}
           {capturing && (
             <Camera
               videoRef={videoRef}
@@ -267,7 +316,6 @@ export default function IncidentForm() {
 
           <canvas ref={canvasRef} className="hidden" />
 
-          {/* SUBMIT */}
           <button
             type="submit"
             className="w-full bg-black text-white py-3 rounded-xl"

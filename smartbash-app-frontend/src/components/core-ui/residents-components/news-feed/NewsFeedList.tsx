@@ -23,7 +23,8 @@ type Post = {
   location?: string;
   content: string;
   image?: string;
-  interested: boolean;
+  votes: number;
+  userVote: 1 | -1 | 0;
   saved: boolean;
 };
 
@@ -54,11 +55,19 @@ export default function NewsFeedList() {
     }
   }, []);
 
-  /* AUTO RELOAD POSTS */
+  /* LOAD POSTS */
   useEffect(() => {
     const loadPosts = () => {
       const stored = JSON.parse(localStorage.getItem("newsfeed") || "[]");
-      setPosts(stored);
+
+      const normalized = stored.map((post: any) => ({
+        votes: post.votes ?? 0,
+        userVote: post.userVote ?? 0,
+        saved: post.saved ?? false,
+        ...post,
+      }));
+
+      setPosts(normalized);
     };
 
     loadPosts();
@@ -93,7 +102,8 @@ export default function NewsFeedList() {
       location: location || undefined,
       content: text,
       image: image || undefined,
-      interested: false,
+      votes: 0,
+      userVote: 0,
       saved: false,
     };
 
@@ -110,11 +120,25 @@ export default function NewsFeedList() {
     setShowChooser(false);
   };
 
-  /* ACTIONS */
-  const toggleInterested = (id: number) => {
-    const updated = posts.map((post) =>
-      post.id === id ? { ...post, interested: !post.interested } : post
-    );
+  /* VOTING SYSTEM */
+  const handleVote = (id: number, voteType: 1 | -1) => {
+    const updated = posts.map((post) => {
+      if (post.id !== id) return post;
+
+      let newVotes = post.votes;
+      let newUserVote: 1 | -1 | 0 = voteType;
+
+      if (post.userVote === voteType) {
+        newVotes -= voteType;
+        newUserVote = 0;
+      } else {
+        newVotes -= post.userVote;
+        newVotes += voteType;
+      }
+
+      return { ...post, votes: newVotes, userVote: newUserVote };
+    });
+
     setPosts(updated);
     localStorage.setItem("newsfeed", JSON.stringify(updated));
   };
@@ -141,13 +165,8 @@ export default function NewsFeedList() {
         onClick={() => setShowChooser(true)}
         className="flex items-center gap-3 bg-white border rounded-full px-4 py-3 cursor-pointer hover:bg-gray-50"
       >
-        <img
-          src={profileImage}
-          className="w-10 h-10 rounded-full object-cover"
-        />
-        <span className="text-sm text-gray-500">
-          WRITE YOUR STORY
-        </span>
+        <img src={profileImage} className="w-10 h-10 rounded-full object-cover" />
+        <span className="text-sm text-gray-500">WRITE YOUR STORY</span>
       </div>
 
       {/* CHOOSER */}
@@ -155,7 +174,6 @@ export default function NewsFeedList() {
         <div className="bg-white border rounded-2xl p-8 shadow-sm">
           <div className="grid grid-cols-2 gap-8">
 
-            {/* EVENT */}
             <div className="border rounded-2xl p-8 text-center flex flex-col justify-between min-h-[260px] hover:shadow-md transition">
               <div>
                 <FaMapMarkerAlt className="mx-auto text-green-500 text-4xl" />
@@ -163,12 +181,12 @@ export default function NewsFeedList() {
                   Post Actual Event
                 </h3>
                 <p className="text-sm text-gray-500 mt-3 leading-relaxed">
-                  Share live photos and your location to show what is happening in real time.
+                  Share live photos and location to show what is happening.
                 </p>
               </div>
 
               <button
-                className="mt-6 bg-green-500 hover:bg-green-600 text-white py-3 rounded-full w-full shadow-md"
+                className="mt-6 bg-green-500 text-white py-3 rounded-full"
                 onClick={() => {
                   setShowChooser(false);
                   router.push("/dashboards/residents");
@@ -178,7 +196,6 @@ export default function NewsFeedList() {
               </button>
             </div>
 
-            {/* HELP */}
             <div className="border rounded-2xl p-8 text-center flex flex-col justify-between min-h-[260px] hover:shadow-md transition">
               <div>
                 <FaHandsHelping className="mx-auto text-blue-600 text-4xl" />
@@ -186,12 +203,12 @@ export default function NewsFeedList() {
                   Post for Help
                 </h3>
                 <p className="text-sm text-gray-500 mt-3 leading-relaxed">
-                  Use this if you are far from the event but want to help or request support.
+                  Offer or request help for incidents.
                 </p>
               </div>
 
               <button
-                className="mt-6 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-full w-full shadow-md"
+                className="mt-6 bg-blue-600 text-white py-3 rounded-full"
                 onClick={() => {
                   setPostType("HELP");
                   setIncidentType("Fire");
@@ -218,8 +235,8 @@ export default function NewsFeedList() {
                 onClick={() => setOpenComposer(false)}
               />
             </div>
-            <div className="px-6 py-6 space-y-4">
 
+            <div className="px-6 py-6 space-y-4">
               <div className="flex gap-3">
                 <button
                   onClick={() => setIncidentType("Fire")}
@@ -270,11 +287,7 @@ export default function NewsFeedList() {
             <div className="flex justify-between px-6 py-4 border-t">
               <label className="cursor-pointer">
                 <FaImage />
-                <input
-                  type="file"
-                  hidden
-                  onChange={handleImageUpload}
-                />
+                <input type="file" hidden onChange={handleImageUpload} />
               </label>
 
               <button
@@ -287,115 +300,148 @@ export default function NewsFeedList() {
           </div>
         </div>
       )}
+{/* POSTS */}
+{posts.map((post) => (
+  <div
+    key={post.id}
+    className="bg-white rounded-2xl shadow-md border border-gray-100 p-6"
+  >
 
-      {/* POSTS */}
-      {posts.map((post) => (
-        <div
-          key={post.id}
-          className="bg-white rounded-2xl shadow-md p-6"
-        >
-          <div className="flex justify-between">
+    {/* HEADER */}
+    <div className="flex justify-between items-start">
 
-            <div className="flex gap-4">
-              <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
-                <FaUserCircle className="text-3xl text-gray-400" />
-              </div>
+      {/* LEFT SIDE */}
+      <div className="flex items-start gap-4">
 
-              <div>
-                <p className="font-semibold text-lg">
-                  {post.author}
-                </p>
+        {/* FIXED AVATAR (NO STRETCH) */}
+        <div className="flex-shrink-0 w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center">
+          <FaUserCircle className="text-2xl text-gray-600 pointer-events-none" />
+        </div>
 
-                <div className="flex items-center gap-3 mt-1">
-                  <span
-                    className={`px-3 py-1 text-xs rounded-full font-medium ${
-                      post.incidentType === "Fire"
-                        ? "bg-red-100 text-red-600"
-                        : "bg-blue-100 text-blue-600"
-                    }`}
-                  >
-                    {post.incidentType}
-                  </span>
+        {/* TEXT INFO */}
+        <div>
+          <div className="flex items-center gap-2">
+            <p className="font-semibold text-lg text-gray-800">
+              {post.author}
+            </p>
 
-                  <span className="text-sm text-gray-500">
-                    {post.time}
-                  </span>
-                </div>
-
-                {post.location && (
-                  <div className="flex items-center gap-2 mt-2 text-gray-600 text-sm">
-                    <FaMapMarkerAlt className="text-gray-400 text-xs" />
-                    {post.location}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* WORKING 3 DOTS */}
-            <div className="relative">
-              <FaEllipsisH
-                className="cursor-pointer text-gray-500"
-                onClick={() =>
-                  setActiveMenu(activeMenu === post.id ? null : post.id)
-                }
-              />
-
-              {activeMenu === post.id && (
-                <div className="absolute right-0 mt-2 w-36 bg-white border rounded-lg shadow-md z-10">
-                  <button
-                    onClick={() => {
-                      toggleSave(post.id);
-                      setActiveMenu(null);
-                    }}
-                    className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-                  >
-                    {post.saved ? "Unsave" : "Save"}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      deletePost(post.id);
-                      setActiveMenu(null);
-                    }}
-                    className="block w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-gray-100"
-                  >
-                    Delete
-                  </button>
-                </div>
-              )}
-            </div>
-
+            {post.votes >= 10 && (
+              <span className="text-xs font-semibold text-orange-500">
+                🔥 Trending
+              </span>
+            )}
           </div>
 
-          <div className="mt-4 text-gray-800 text-sm leading-relaxed">
-            {post.content}
-          </div>
-
-          {post.image && (
-            <img
-              src={post.image}
-              className="w-full mt-4 rounded-xl object-cover"
-            />
-          )}
-
-          <div className="mt-4">
-            <button
-              onClick={() => toggleInterested(post.id)}
-              className={`text-sm font-medium ${
-                post.interested
-                  ? "text-green-600"
-                  : "text-gray-500"
+          <div className="flex items-center gap-3 mt-1">
+            <span
+              className={`px-3 py-1 text-xs rounded-full font-medium ${
+                post.incidentType === "Fire"
+                  ? "bg-red-100 text-red-600"
+                  : "bg-blue-100 text-blue-600"
               }`}
             >
-              {post.interested
-                ? "Interested"
-                : "Mark as Interested"}
-            </button>
+              {post.incidentType}
+            </span>
+
+            <span className="text-sm text-gray-400">
+              {post.time}
+            </span>
           </div>
 
+          {post.location && (
+            <div className="flex items-center gap-2 mt-2 text-gray-600 text-sm">
+              <FaMapMarkerAlt className="text-xs" />
+              {post.location}
+            </div>
+          )}
         </div>
-      ))}
+      </div>
 
+      {/* MENU */}
+      <div className="relative">
+        <FaEllipsisH
+          className="cursor-pointer text-gray-400 hover:text-gray-700 transition"
+          onClick={() =>
+            setActiveMenu(activeMenu === post.id ? null : post.id)
+          }
+        />
+
+        {activeMenu === post.id && (
+          <div className="absolute right-0 mt-3 w-36 bg-white border border-gray-200 rounded-xl shadow-lg z-10 overflow-hidden">
+            <button
+              onClick={() => {
+                toggleSave(post.id);
+                setActiveMenu(null);
+              }}
+              className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 transition"
+            >
+              {post.saved ? "Unsave" : "Save"}
+            </button>
+
+            <button
+              onClick={() => {
+                deletePost(post.id);
+                setActiveMenu(null);
+              }}
+              className="block w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition"
+            >
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+
+    {/* CONTENT */}
+    <div className="mt-5 text-gray-800 text-base leading-relaxed">
+      {post.content}
+    </div>
+
+    {/* IMAGE */}
+    {post.image && (
+      <div className="mt-5 rounded-2xl overflow-hidden">
+        <img
+          src={post.image}
+          className="w-full max-h-[500px] object-cover rounded-2xl"
+        />
+      </div>
+    )}
+
+    {/* VOTING */}
+    <div className="mt-6 border-t pt-5">
+      <div className="flex items-center bg-gray-100 rounded-full p-1 w-fit">
+
+        <button
+          onClick={() => handleVote(post.id, 1)}
+          className={`px-5 py-2 rounded-full text-sm font-semibold transition ${
+            post.userVote === 1
+              ? "bg-green-500 text-white shadow-md"
+              : "text-gray-600 hover:text-green-600"
+          }`}
+        >
+          Mark as Urgent
+        </button>
+
+        <span className="px-4 font-bold text-gray-700">
+          {post.votes}
+        </span>
+
+        <button
+          onClick={() => handleVote(post.id, -1)}
+          className={`px-5 py-2 rounded-full text-sm font-semibold transition ${
+            post.userVote === -1
+              ? "bg-blue-500 text-white shadow-md"
+              : "text-gray-600 hover:text-blue-600"
+          }`}
+        >
+          Not Urgent
+        </button>
+
+      </div>
+    </div>
+
+  </div>
+))}
     </div>
   );
 }
