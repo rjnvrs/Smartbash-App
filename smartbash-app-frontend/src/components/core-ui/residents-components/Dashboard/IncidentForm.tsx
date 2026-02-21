@@ -1,35 +1,32 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
-import { Flame, MapPin, Send, Upload, Waves } from "lucide-react"
-import { apiFetch } from "@/lib/api"
 import Camera from "./Camera"
+import { MapPin, Upload, Send, Flame, Waves } from "lucide-react"
+import { apiFetch } from "@/lib/api"
 
 const IncidentMap = dynamic(() => import("./IncidentMap"), { ssr: false })
 
 type IncidentType = "Fire" | "Flood"
+type Suggestion = { display_name: string; lat: string; lon: string }
 
-type Suggestion = {
-  display_name: string
-  lat: string
-  lon: string
-}
+const MAX_BASE64_SIZE = 500_000
 
 export default function IncidentForm() {
   const router = useRouter()
 
-  const [incidentType, setIncidentType] = useState<IncidentType>("Fire")
+  const incidentType: IncidentType = "Fire"
+
   const [description, setDescription] = useState("")
   const [location, setLocation] = useState("")
   const [mapCenter, setMapCenter] = useState<[number, number]>([14.5995, 120.9842])
   const [images, setImages] = useState<string[]>([])
   const [capturing, setCapturing] = useState(false)
-  const [cameraMessage, setCameraMessage] = useState("")
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showMediaChoice, setShowMediaChoice] = useState(false)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
-  const [showInputPicker, setShowInputPicker] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
@@ -37,17 +34,11 @@ export default function IncidentForm() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const startCamera = async () => {
-    setCameraMessage("")
-
-    // Camera is blocked on non-secure origins (e.g. LAN IP over HTTP).
-    if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
-      setCameraMessage("Camera is blocked on insecure connection. Use Upload Image instead.")
-      fileInputRef.current?.click()
-      return
-    }
-
     setCapturing(true)
     try {
+      if (!window.isSecureContext) {
+        throw new Error("INSECURE_CONTEXT")
+      }
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
       })
@@ -56,25 +47,44 @@ export default function IncidentForm() {
         await videoRef.current.play()
       }
     } catch {
-      setCameraMessage("Camera access denied. Use Upload Image instead.")
-      setCapturing(false)
+      window.alert("Camera unavailable on this browser/network. Upload a photo instead.")
       fileInputRef.current?.click()
+      setCapturing(false)
     }
   }
 
-  const openCaptureOptions = () => setShowInputPicker(true)
+  const handlePickCamera = async () => {
+    setShowMediaChoice(false)
+    await startCamera()
+  }
 
-  const handleFallbackUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePickUpload = () => {
+    setShowMediaChoice(false)
+    fileInputRef.current?.click()
+  }
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     const reader = new FileReader()
-    reader.onloadend = () => {
-      const result = reader.result
-      if (typeof result === "string") setImages((prev) => [...prev, result])
+    reader.onload = () => {
+      const src = String(reader.result || "")
+      const img = new Image()
+      img.onload = () => {
+        const c = document.createElement("canvas")
+        c.width = img.width
+        c.height = img.height
+        const ctx = c.getContext("2d")
+        if (!ctx) return
+        ctx.drawImage(img, 0, 0)
+        const original = c.toDataURL("image/png")
+        const compressed = original.length > MAX_BASE64_SIZE ? c.toDataURL("image/jpeg", 0.4) : original
+        setImages((prev) => [...prev, compressed])
+      }
+      img.src = src
     }
     reader.readAsDataURL(file)
-    e.target.value = ""
+    e.currentTarget.value = ""
   }
 
   const capturePhoto = () => {
@@ -88,24 +98,25 @@ export default function IncidentForm() {
     if (!ctx) return
 
     ctx.drawImage(video, 0, 0)
-    setImages((prev) => [...prev, canvas.toDataURL("image/png")])
+    const originalImage = canvas.toDataURL("image/png")
+    const compressedImage =
+      originalImage.length > MAX_BASE64_SIZE ? canvas.toDataURL("image/jpeg", 0.4) : originalImage
 
-    ;(video.srcObject as MediaStream | null)?.getTracks()?.forEach((track) => track.stop())
+    setImages((prev) => [...prev, compressedImage])
+    ;(video.srcObject as MediaStream)?.getTracks()?.forEach((t) => t.stop())
     video.srcObject = null
     setCapturing(false)
   }
 
   const cancelCapture = () => {
-    ;(videoRef.current?.srcObject as MediaStream | null)?.getTracks()?.forEach((track) => track.stop())
+    ;(videoRef.current?.srcObject as MediaStream | null)?.getTracks()?.forEach((t) => t.stop())
     if (videoRef.current) videoRef.current.srcObject = null
     setCapturing(false)
   }
 
   const autoSearchWhileTyping = async (value: string) => {
     setLocation(value)
-
     if (typingTimeout.current) clearTimeout(typingTimeout.current)
-
     if (value.length < 3) {
       setSuggestions([])
       return
@@ -114,7 +125,9 @@ export default function IncidentForm() {
     typingTimeout.current = setTimeout(async () => {
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(value)}`
+          `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(
+            value
+          )}`
         )
         const data = (await res.json()) as Suggestion[]
         setSuggestions(Array.isArray(data) ? data : [])
@@ -127,10 +140,9 @@ export default function IncidentForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (isSubmitting) return
-
     setIsSubmitting(true)
     try {
-      const res = await apiFetch("/auth/residents/incidents/create/", {
+      const incidentRes = await apiFetch("/auth/residents/incidents/create/", {
         method: "POST",
         body: JSON.stringify({
           type: incidentType,
@@ -141,14 +153,26 @@ export default function IncidentForm() {
           lng: mapCenter[1],
         }),
       })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data?.message || "Failed to submit report")
+      const incidentData = await incidentRes.json().catch(() => ({}))
+      if (!incidentRes.ok) {
+        throw new Error(incidentData?.message || "Failed to submit report")
+      }
+
+      await apiFetch("/auth/residents/newsfeed/create/", {
+        method: "POST",
+        body: JSON.stringify({
+          postType: "EVENT",
+          incidentType,
+          location,
+          content: description,
+          image: images[0] || null,
+        }),
+      }).catch(() => {})
 
       setDescription("")
       setLocation("")
       setImages([])
-      setIncidentType("Fire")
-      router.push("/dashboards/residents/reports")
+      router.push("/dashboards/residents/news-feed")
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to submit report"
       window.alert(message)
@@ -163,49 +187,41 @@ export default function IncidentForm() {
         <h2 className="text-xl font-semibold mb-6">Report an Environmental Incident</h2>
 
         <div className="flex gap-6 mb-6">
-          <button
-            type="button"
-            onClick={() => setIncidentType("Fire")}
-            className={`flex-1 p-6 rounded-xl border ${
-              incidentType === "Fire" ? "bg-red-100 border-red-400" : "bg-red-50"
-            }`}
-          >
+          <div className="flex-1 p-6 rounded-xl border bg-red-100 border-red-400">
             <Flame className="mx-auto text-red-600" />
-            Fire
-          </button>
+            <p className="text-center mt-2 font-medium">Fire</p>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setIncidentType("Flood")}
-            className={`flex-1 p-6 rounded-xl border ${
-              incidentType === "Flood" ? "bg-blue-100 border-blue-400" : "bg-blue-50"
-            }`}
-          >
+          <div className="flex-1 p-6 rounded-xl border bg-blue-100 border-blue-400">
             <Waves className="mx-auto text-blue-600" />
-            Flood
-          </button>
+            <p className="text-center mt-2 font-medium">Flood</p>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit}>
+          <label className="block font-semibold mb-2">Incident Description</label>
+
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full h-28 border rounded-xl p-4 mb-4"
-            placeholder="Describe the incident"
+            className="w-full h-28 border rounded-xl p-4 mb-2"
+            placeholder="Please describe the fire or flood incident you are currently observing. Example: There is flooding in our area. / There is a fire nearby."
             required
           />
+
+          <p className="text-xs text-yellow-500 mb-4">Only fire or flood incidents will be accepted.</p>
 
           <div className="flex gap-2 mb-4 relative">
             <div className="relative flex-1 z-[1000]">
               <input
                 value={location}
                 onChange={(e) => autoSearchWhileTyping(e.target.value)}
-                className="w-full border rounded-xl p-3 relative z-[1000]"
+                className="w-full border rounded-xl p-3"
                 placeholder="Barangay, street, city"
               />
 
               {suggestions.length > 0 && (
-                <div className="absolute top-full left-0 bg-white border rounded-xl shadow-lg w-full max-h-48 overflow-auto z-[1000]">
+                <div className="absolute top-full left-0 bg-white border rounded-xl shadow-lg w-full max-h-48 overflow-auto">
                   {suggestions.map((s, i) => (
                     <div
                       key={`${s.lat}-${s.lon}-${i}`}
@@ -231,7 +247,7 @@ export default function IncidentForm() {
                   "_blank"
                 )
               }
-              className="px-4 bg-gray-700 text-white rounded-xl z-[1000]"
+              className="px-4 bg-gray-700 text-white rounded-xl"
             >
               <MapPin />
             </button>
@@ -242,61 +258,50 @@ export default function IncidentForm() {
           </div>
 
           <div
-            onClick={() => !capturing && openCaptureOptions()}
+            onClick={() => !capturing && setShowMediaChoice(true)}
             className="border-2 border-dashed rounded-xl p-6 text-center mb-6 cursor-pointer"
           >
             {images.length ? (
-              images.map((img, i) => <img key={i} src={img} className="rounded-xl mb-2" alt={`Report ${i + 1}`} />)
+              images.map((img, i) => <img key={i} src={img} className="rounded-xl mb-2" alt={`Capture ${i + 1}`} />)
             ) : (
               <>
                 <Upload className="mx-auto mb-2" />
-                Click to take/upload photo of the {incidentType.toLowerCase()}
+                Click to take photo of the {incidentType.toLowerCase()}
               </>
             )}
           </div>
-
-          {!!cameraMessage && <p className="text-sm text-amber-700 -mt-3 mb-4">{cameraMessage}</p>}
 
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
+            onChange={handleFileUpload}
             className="hidden"
-            onChange={handleFallbackUpload}
           />
 
-          {showInputPicker && (
-            <div className="fixed inset-0 z-[2100] bg-black/40 flex items-center justify-center p-4">
-              <div className="w-full max-w-sm bg-white rounded-xl shadow-xl p-5">
-                <h3 className="text-base font-semibold mb-2">Add incident photo</h3>
-                <p className="text-sm text-gray-600 mb-4">Choose your input source.</p>
+          {showMediaChoice && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl p-5 w-[320px] shadow-xl">
+                <h3 className="font-semibold mb-4">Add Photo</h3>
                 <div className="space-y-2">
                   <button
                     type="button"
-                    onClick={async () => {
-                      setShowInputPicker(false)
-                      await startCamera()
-                    }}
-                    className="w-full rounded-lg bg-black text-white py-2.5"
+                    onClick={() => void handlePickCamera()}
+                    className="w-full py-2 rounded-lg bg-black text-white"
                   >
                     Use Camera
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowInputPicker(false)
-                      setCameraMessage("")
-                      fileInputRef.current?.click()
-                    }}
-                    className="w-full rounded-lg border py-2.5 hover:bg-gray-50"
+                    onClick={handlePickUpload}
+                    className="w-full py-2 rounded-lg border"
                   >
-                    Upload Picture
+                    Upload Photo
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowInputPicker(false)}
-                    className="w-full rounded-lg py-2 text-gray-500 hover:bg-gray-50"
+                    onClick={() => setShowMediaChoice(false)}
+                    className="w-full py-2 rounded-lg text-gray-600"
                   >
                     Cancel
                   </button>
