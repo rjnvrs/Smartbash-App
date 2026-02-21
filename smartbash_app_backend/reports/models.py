@@ -51,6 +51,7 @@ class NewsFeedPost(models.Model):
     content = models.TextField(blank=True, null=True)
     image = models.TextField(blank=True, null=True)
     interested_by = models.JSONField(default=list, blank=True)
+    not_urgent_by = models.JSONField(default=list, blank=True)
     saved_by = models.JSONField(default=list, blank=True)
     comments = models.JSONField(default=list, blank=True)
     shared_by = models.JSONField(default=list, blank=True)

@@ -435,7 +435,11 @@ def _resident_full_name(resident: Resident) -> str:
 
 
 def _normalize_barangay(value: str | None) -> str:
-    return " ".join((value or "").lower().split())
+    text = " ".join((value or "").lower().split())
+    text = re.sub(r"\bbarangay\b", "", text)
+    text = re.sub(r"\bbrgy\.?\b", "", text)
+    text = " ".join(text.split())
+    return text
 
 
 def _normalize_location_key(value: str | None) -> str:
@@ -714,29 +718,46 @@ def _notify_services_for_report(report: IncidentReport, report_count: int | None
 
     incident_type = (report.incident_type or "").strip()
     services = Service.objects.filter(svc_is_active=True, svc_is_deleted=False)
-    typed_services = services
     if incident_type == "Fire":
-        typed_services = services.filter(
+        services = services.filter(
             Q(svc_description__iexact="Fire")
             | Q(svc_description__icontains="fire")
             | Q(svc_description__icontains="bfp")
+            | Q(svc_name__icontains="fire")
+            | Q(svc_name__icontains="bfp")
         )
     else:
-        typed_services = services.filter(
+        services = services.filter(
             Q(svc_description__iexact="Rescue")
             | Q(svc_description__icontains="rescue")
             | Q(svc_description__icontains="flood")
             | Q(svc_description__icontains="ambulance")
             | Q(svc_description__icontains="evac")
+            | Q(svc_name__icontains="rescue")
+            | Q(svc_name__icontains="flood")
+            | Q(svc_name__icontains="ambulance")
+            | Q(svc_name__icontains="evac")
         )
-    if typed_services.exists():
-        services = typed_services
 
     barangay = (report.barangay or "").strip()
-    if barangay:
-        localized = services.filter(svc_location__icontains=barangay)
-        if localized.exists():
-            services = localized
+    # Strict dispatch rule: notify only services in the same barangay.
+    # No cross-barangay fallback.
+    if not barangay:
+        return {
+            "servicesMatched": 0,
+            "notificationsCreated": 0,
+            "smsSent": 0,
+            "smsFailed": 0,
+        }
+    target_barangay = _normalize_barangay(barangay)
+    localized_services = []
+    for service in services:
+        service_location = _normalize_barangay(service.svc_location)
+        if not service_location or not target_barangay:
+            continue
+        if target_barangay in service_location or service_location in target_barangay:
+            localized_services.append(service)
+    services = localized_services
 
     reports_in_cluster = report_count or _matching_report_count(report)
     services_login_url = os.environ.get("SERVICES_PORTAL_LOGIN_URL", "").strip()
@@ -756,7 +777,7 @@ def _notify_services_for_report(report: IncidentReport, report_count: int | None
     if services_login_url:
         message += f"\nLogin: {services_login_url}"
 
-    matched_services = services.count()
+    matched_services = len(services)
     notifications_created = 0
     sms_sent_count = 0
     sms_failed_count = 0
@@ -1568,6 +1589,9 @@ def residents_newsfeed_list(request):
             "content": p.content or "",
             "image": p.image,
             "interested": email in (p.interested_by or []),
+            "urgentCount": len(p.interested_by or []),
+            "notUrgentCount": len(p.not_urgent_by or []),
+            "userVote": 1 if email in (p.interested_by or []) else -1 if email in (p.not_urgent_by or []) else 0,
             "saved": email in (p.saved_by or []),
             "comments": p.comments or [],
             "commentCount": len(p.comments or []),
@@ -1590,14 +1614,44 @@ def residents_newsfeed_interest(request):
     except NewsFeedPost.DoesNotExist:
         return Response({"message": "Post not found"}, status=404)
     email = resident.res_email_address
-    users = post.interested_by or []
-    if email in users:
-        users.remove(email)
+    vote_type = (request.data.get("voteType") or "").strip().lower()
+    urgent_users = post.interested_by or []
+    not_urgent_users = post.not_urgent_by or []
+
+    if vote_type == "not_urgent":
+        if email in not_urgent_users:
+            not_urgent_users.remove(email)
+        else:
+            not_urgent_users.append(email)
+        if email in urgent_users:
+            urgent_users.remove(email)
+    elif vote_type in ("clear", "none"):
+        if email in urgent_users:
+            urgent_users.remove(email)
+        if email in not_urgent_users:
+            not_urgent_users.remove(email)
     else:
-        users.append(email)
-    post.interested_by = users
-    post.save(update_fields=["interested_by", "updated_at"])
-    return Response({"message": "OK", "interested": email in users}, status=200)
+        # default: urgent vote (backward compatible)
+        if email in urgent_users:
+            urgent_users.remove(email)
+        else:
+            urgent_users.append(email)
+        if email in not_urgent_users:
+            not_urgent_users.remove(email)
+
+    post.interested_by = urgent_users
+    post.not_urgent_by = not_urgent_users
+    post.save(update_fields=["interested_by", "not_urgent_by", "updated_at"])
+    user_vote = 1 if email in urgent_users else -1 if email in not_urgent_users else 0
+    return Response(
+        {
+            "message": "OK",
+            "userVote": user_vote,
+            "urgentCount": len(urgent_users),
+            "notUrgentCount": len(not_urgent_users),
+        },
+        status=200,
+    )
 
 
 @api_view(['POST'])

@@ -42,7 +42,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'accounts',
     'residents',
-    'officials',
+    'officials.apps.OfficialsConfig',
     'reports',
     'services',
     'incidents',
