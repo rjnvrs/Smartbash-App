@@ -24,14 +24,12 @@ export default function IncidentForm() {
   const [mapCenter, setMapCenter] = useState<[number, number]>([14.5995, 120.9842])
   const [images, setImages] = useState<string[]>([])
   const [capturing, setCapturing] = useState(false)
-  const [showMediaChoice, setShowMediaChoice] = useState(false)
   const [suggestions, setSuggestions] = useState<Suggestion[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const typingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const canvasRef = useRef<HTMLCanvasElement | null>(null)
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const startCamera = async () => {
     setCapturing(true)
@@ -47,44 +45,9 @@ export default function IncidentForm() {
         await videoRef.current.play()
       }
     } catch {
-      window.alert("Camera unavailable on this browser/network. Upload a photo instead.")
-      fileInputRef.current?.click()
+      window.alert("Camera unavailable on this browser/network.")
       setCapturing(false)
     }
-  }
-
-  const handlePickCamera = async () => {
-    setShowMediaChoice(false)
-    await startCamera()
-  }
-
-  const handlePickUpload = () => {
-    setShowMediaChoice(false)
-    fileInputRef.current?.click()
-  }
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      const src = String(reader.result || "")
-      const img = new Image()
-      img.onload = () => {
-        const c = document.createElement("canvas")
-        c.width = img.width
-        c.height = img.height
-        const ctx = c.getContext("2d")
-        if (!ctx) return
-        ctx.drawImage(img, 0, 0)
-        const original = c.toDataURL("image/png")
-        const compressed = original.length > MAX_BASE64_SIZE ? c.toDataURL("image/jpeg", 0.4) : original
-        setImages((prev) => [...prev, compressed])
-      }
-      img.src = src
-    }
-    reader.readAsDataURL(file)
-    e.currentTarget.value = ""
   }
 
   const capturePhoto = () => {
@@ -258,7 +221,7 @@ export default function IncidentForm() {
           </div>
 
           <div
-            onClick={() => !capturing && setShowMediaChoice(true)}
+            onClick={() => !capturing && startCamera()}
             className="border-2 border-dashed rounded-xl p-6 text-center mb-6 cursor-pointer"
           >
             {images.length ? (
@@ -270,45 +233,6 @@ export default function IncidentForm() {
               </>
             )}
           </div>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileUpload}
-            className="hidden"
-          />
-
-          {showMediaChoice && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl p-5 w-[320px] shadow-xl">
-                <h3 className="font-semibold mb-4">Add Photo</h3>
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => void handlePickCamera()}
-                    className="w-full py-2 rounded-lg bg-black text-white"
-                  >
-                    Use Camera
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handlePickUpload}
-                    className="w-full py-2 rounded-lg border"
-                  >
-                    Upload Photo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowMediaChoice(false)}
-                    className="w-full py-2 rounded-lg text-gray-600"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {capturing && (
             <Camera
